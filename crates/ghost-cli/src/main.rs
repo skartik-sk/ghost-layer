@@ -73,6 +73,9 @@ enum Cmd {
     Ip {
         #[command(flatten)]
         nym: NymArgs,
+        /// Print your own IP in full (masked by default so it doesn't end up in screenshots/logs)
+        #[arg(long)]
+        show_real_ip: bool,
     },
     /// Broadcast queue: pending/accepted/failed, delays, fresh connection ids, explorer links
     Status,
@@ -218,7 +221,7 @@ async fn run(cli: Cli) -> Result<u8, Fail> {
     match cli.cmd {
         Cmd::Up(a) => up(a, cli.json).await,
         Cmd::Status => status(cli.json).await,
-        Cmd::Ip { nym } => ip(nym, cli.json).await,
+        Cmd::Ip { nym, show_real_ip } => ip(nym, show_real_ip, cli.json).await,
         Cmd::Attack { events, threshold, single_ip } => attack(&events, threshold, single_ip, cli.json),
         Cmd::Report { before, after, attack: true, threshold, out, nym_note } => {
             attack_report(&before, &after, threshold, out, nym_note.as_deref(), cli.json)
@@ -428,7 +431,14 @@ fn nym_exit(id: &str) -> Option<String> {
     Some(format!("exit node {} ({})", it.next()?, it.next()?))
 }
 
-async fn ip(n: NymArgs, json: bool) -> Result<u8, Fail> {
+fn mask_ip(ip: &str) -> String {
+    match ip.split('.').collect::<Vec<_>>().as_slice() {
+        [a, b, _, _] => format!("{a}.{b}.x.x"),
+        _ => ip.split(':').take(2).collect::<Vec<_>>().join(":") + ":…",
+    }
+}
+
+async fn ip(n: NymArgs, show_real_ip: bool, json: bool) -> Result<u8, Fail> {
     let measure = |s| async move { ghost_transport::public_ip(s).await.map_err(|e| format!("{e:#}")) };
     let direct = measure(None).await;
     let (sync, bcast) = if n.nym {
@@ -438,20 +448,23 @@ async fn ip(n: NymArgs, json: bool) -> Result<u8, Fail> {
         (direct.clone(), direct.clone())
     };
     let show = |r: &Result<String, String>| r.clone().unwrap_or_else(|e| format!("error: {e}"));
+    // Your own IP is masked unless asked; in direct mode the paths show it too.
+    let own = |r: &Result<String, String>| if show_real_ip { show(r) } else { r.as_ref().map(|x| mask_ip(x)).unwrap_or_else(|e| format!("error: {e}")) };
     let unlinkable = matches!((&sync, &bcast, &direct), (Ok(s), Ok(b), Ok(d)) if s != b && s != d && b != d);
     if json {
-        println!("{}", json!({"ok": sync.is_ok() && bcast.is_ok(), "nym": n.nym, "your_ip": show(&direct),
-            "sync_path_ip": show(&sync), "broadcast_path_ip": show(&bcast), "paths_unlinkable_by_ip": unlinkable,
+        let path = |r: &Result<String, String>| if n.nym { show(r) } else { own(r) };
+        println!("{}", json!({"ok": sync.is_ok() && bcast.is_ok(), "nym": n.nym, "your_ip": own(&direct),
+            "sync_path_ip": path(&sync), "broadcast_path_ip": path(&bcast), "paths_unlinkable_by_ip": unlinkable,
             "sync_exit": nym_exit("ghost-sync"), "broadcast_exit": nym_exit("ghost-bcast")}));
     } else {
-        println!("your real IP            {}", show(&direct));
+        println!("your real IP            {}", own(&direct));
         if n.nym {
             println!("server sees on SYNC      {}  via Nym {} [{}]", show(&sync), n.nym_sync, nym_exit("ghost-sync").unwrap_or_default());
             println!("server sees on BROADCAST {}  via Nym {} [{}]", show(&bcast), n.nym_broadcast, nym_exit("ghost-bcast").unwrap_or_default());
             println!("{}", if unlinkable { "✅ three different IPs: the server cannot link sync and broadcast by IP" } else { "❌ IPs overlap — check your Nym clients" });
         } else {
-            println!("server sees on SYNC      {}  (direct)", show(&sync));
-            println!("server sees on BROADCAST {}  (direct)", show(&bcast));
+            println!("server sees on SYNC      {}  (direct = your IP)", own(&sync));
+            println!("server sees on BROADCAST {}  (direct = your IP)", own(&bcast));
             println!("⚠️  same IP on both paths → linkable by IP. Use `ghost ip --nym` after scripts/nym_setup.sh");
         }
     }
