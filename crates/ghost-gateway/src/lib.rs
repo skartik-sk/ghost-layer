@@ -4,7 +4,9 @@
 //! from the message body only, so no wallet metadata (User-Agent, X-Forwarded-For, Forwarded,
 //! Via, ...) is ever forwarded upstream.
 
+use std::collections::HashMap;
 use std::net::SocketAddr;
+use std::time::Instant;
 use std::pin::Pin;
 use std::sync::Arc;
 use std::sync::atomic::{AtomicU64, Ordering};
@@ -55,45 +57,55 @@ impl Broadcaster for FreshConnBroadcaster {
 }
 
 pub struct Gateway {
-    sync: Client,
-    sync_conn_id: u64,
+    sync_transport: Transport,
+    /// One upstream SYNC connection per wallet connection (keyed by the wallet's local socket),
+    /// so separate wallet sessions are separate connections upstream too.
+    sessions: tokio::sync::Mutex<HashMap<SocketAddr, SyncSession>>,
     scheduler: Arc<Scheduler<FreshConnBroadcaster>>,
     send_mode: SendMode,
     grid: Arc<GridFetcher>,
 }
 
-/// Fetches whole grid cells over the SYNC connection and serves wallets from them.
-struct GridFetcher {
-    sync: Client,
+#[derive(Clone)]
+struct SyncSession {
+    client: Client,
     conn_id: u64,
+    last_used: Instant,
+}
+
+/// Upstream sync connections idle longer than this are dropped.
+const SESSION_IDLE: std::time::Duration = std::time::Duration::from_secs(120);
+
+/// Grid cell cache and tip, shared by all sync sessions.
+struct GridFetcher {
     cache: BlockCache,
     tip: AtomicU64,
 }
 
 impl GridFetcher {
-    async fn refresh_tip(&self) -> Result<u64, Status> {
-        info!(target: "upstream", conn = self.conn_id, path = "sync", method = "GetLatestBlock", "tip refresh for grid planner");
-        let h = self.sync.clone().get_latest_block(ChainSpec {}).await?.into_inner().height;
+    async fn refresh_tip(&self, mut c: Client, conn_id: u64) -> Result<u64, Status> {
+        info!(target: "upstream", conn = conn_id, path = "sync", method = "GetLatestBlock", "tip refresh for grid planner");
+        let h = c.get_latest_block(ChainSpec {}).await?.into_inner().height;
         self.tip.store(h, Ordering::Relaxed);
         Ok(h)
     }
 
     /// Returns cell blocks (height, encoded CompactBlock), from cache or one aligned upstream request.
-    async fn cell(&self, kind: &str, nullifiers: bool, pools: &[i32], cell: (u64, u64), tip: u64) -> Result<Vec<(u64, Vec<u8>)>, Status> {
+    #[allow(clippy::too_many_arguments)]
+    async fn cell(&self, mut c: Client, conn_id: u64, kind: &str, nullifiers: bool, pools: &[i32], cell: (u64, u64), tip: u64) -> Result<Vec<(u64, Vec<u8>)>, Status> {
         let internal = |e: anyhow::Error| Status::internal(format!("ghost cache: {e:#}"));
         if self.cache.has_cell(kind, cell, tip).map_err(internal)? {
             info!(target: "grid", cell_start = cell.0, cell_end = cell.1, "cell served from cache (no upstream request)");
             return self.cache.get(kind, cell.0, cell.1).map_err(internal);
         }
         let method = if nullifiers { "GetBlockRangeNullifiers" } else { "GetBlockRange" };
-        info!(target: "upstream", conn = self.conn_id, path = "sync", method, aligned = grid::is_aligned(cell.0, cell.1, tip),
+        info!(target: "upstream", conn = conn_id, path = "sync", method, aligned = grid::is_aligned(cell.0, cell.1, tip),
             "range={}..={} (grid cell)", cell.0, cell.1);
         let req = BlockRange {
             start: Some(BlockId { height: cell.0, hash: vec![] }),
             end: Some(BlockId { height: cell.1, hash: vec![] }),
             pool_types: pools.to_vec(),
         };
-        let mut c = self.sync.clone();
         let mut stream = if nullifiers {
             #[allow(deprecated)]
             c.get_block_range_nullifiers(req).await?.into_inner()
@@ -125,19 +137,19 @@ impl GridFetcher {
         Ok(out)
     }
 
-    async fn single(self: Arc<Self>, height: u64, nullifiers: bool) -> Result<CompactBlock, Status> {
+    async fn single(self: Arc<Self>, c: Client, conn_id: u64, height: u64, nullifiers: bool) -> Result<CompactBlock, Status> {
         let id = Some(BlockId { height, hash: vec![] });
-        let mut s = self.range(BlockRange { start: id.clone(), end: id, pool_types: vec![] }, nullifiers).await?;
+        let mut s = self.range(c, conn_id, BlockRange { start: id.clone(), end: id, pool_types: vec![] }, nullifiers).await?;
         s.next().await.unwrap_or_else(|| Err(Status::not_found(format!("block {height} not found"))))
     }
 
-    async fn range(self: Arc<Self>, msg: BlockRange, nullifiers: bool) -> Result<BoxStream<CompactBlock>, Status> {
+    async fn range(self: Arc<Self>, c: Client, conn_id: u64, msg: BlockRange, nullifiers: bool) -> Result<BoxStream<CompactBlock>, Status> {
         let a = msg.start.as_ref().map(|b| b.height).unwrap_or_default();
         let b = msg.end.as_ref().map(|b| b.height).unwrap_or_default();
         let (lo, hi, descending) = if a <= b { (a, b, false) } else { (b, a, true) };
         let mut tip = self.tip.load(Ordering::Relaxed);
         if hi > tip {
-            tip = self.refresh_tip().await?;
+            tip = self.refresh_tip(c.clone(), conn_id).await?;
         }
         if hi > tip {
             return Err(Status::out_of_range(format!("requested height {hi} is above the chain tip {tip}")));
@@ -153,7 +165,7 @@ impl GridFetcher {
         tokio::spawn(async move {
             let mut held = Vec::new(); // only used for descending requests
             for cell in plan.cells {
-                match self.cell(&kind, nullifiers, &pools, cell, tip).await {
+                match self.cell(c.clone(), conn_id, &kind, nullifiers, &pools, cell, tip).await {
                     Err(e) => {
                         let _ = tx.send(Err(e)).await;
                         return;
@@ -182,25 +194,50 @@ impl GridFetcher {
 }
 
 impl Gateway {
-    /// Opens the single long-lived SYNC connection.
+    /// Checks the upstream is reachable (probe connection, then dropped). Sync connections are
+    /// opened lazily, one per wallet connection.
     pub async fn connect(
         sync: &Transport,
         scheduler: Arc<Scheduler<FreshConnBroadcaster>>,
         send_mode: SendMode,
         cache: BlockCache,
     ) -> anyhow::Result<Self> {
-        let conn = sync.fresh().await?;
-        info!(target: "upstream", conn = conn.id, transport = sync.label, server = %sync.upstream.uri(), "sync connection opened");
-        let grid = Arc::new(GridFetcher { sync: conn.client.clone(), conn_id: conn.id, cache, tip: AtomicU64::new(0) });
-        Ok(Self { sync: conn.client, sync_conn_id: conn.id, scheduler, send_mode, grid })
+        let mut probe = sync.fresh().await?;
+        let tip = probe.client.get_latest_block(ChainSpec {}).await?.into_inner().height;
+        info!(target: "upstream", conn = probe.id, transport = sync.label, server = %sync.upstream.uri(), tip, "startup probe ok (connection closed)");
+        drop(probe);
+        let grid = Arc::new(GridFetcher { cache, tip: AtomicU64::new(tip) });
+        Ok(Self { sync_transport: sync.clone(), sessions: Default::default(), scheduler, send_mode, grid })
     }
 
-    fn client(&self) -> Client {
-        self.sync.clone()
+    /// The upstream SYNC connection for this wallet connection (opened on first use).
+    async fn session(&self, wallet: Option<SocketAddr>) -> Result<(Client, u64), Status> {
+        let key = wallet.unwrap_or_else(|| SocketAddr::from(([0, 0, 0, 0], 0)));
+        let mut map = self.sessions.lock().await;
+        map.retain(|k, s| {
+            let keep = s.last_used.elapsed() < SESSION_IDLE;
+            if !keep {
+                info!(target: "upstream", conn = s.conn_id, path = "sync", wallet = %k, "idle sync session closed");
+            }
+            keep
+        });
+        if let Some(s) = map.get_mut(&key) {
+            s.last_used = Instant::now();
+            return Ok((s.client.clone(), s.conn_id));
+        }
+        let conn = self
+            .sync_transport
+            .fresh()
+            .await
+            .map_err(|e| Status::unavailable(format!("ghost: sync upstream unavailable: {e:#}")))?;
+        info!(target: "upstream", conn = conn.id, path = "sync", transport = self.sync_transport.label, wallet = %key,
+            "new sync connection for a new wallet session");
+        map.insert(key, SyncSession { client: conn.client.clone(), conn_id: conn.id, last_used: Instant::now() });
+        Ok((conn.client, conn.id))
     }
 
-    fn log(&self, method: &str, detail: String) {
-        info!(target: "upstream", conn = self.sync_conn_id, path = "sync", method, "{detail}");
+    fn log(&self, conn: u64, method: &str, detail: String) {
+        info!(target: "upstream", conn, path = "sync", method, "{detail}");
     }
 }
 
@@ -210,18 +247,20 @@ fn passthrough_stream<T: Send + 'static>(s: Streaming<T>) -> BoxStream<T> {
 
 macro_rules! unary {
     ($self:ident, $req:ident, $method:ident, $name:literal) => {{
+        let (mut c, conn) = $self.session($req.remote_addr()).await?;
         let msg = $req.into_inner();
-        $self.log($name, msg.summary());
-        let resp = $self.client().$method(Request::new(msg)).await?;
+        $self.log(conn, $name, msg.summary());
+        let resp = c.$method(Request::new(msg)).await?;
         Ok(Response::new(resp.into_inner()))
     }};
 }
 
 macro_rules! streaming {
     ($self:ident, $req:ident, $method:ident, $name:literal) => {{
+        let (mut c, conn) = $self.session($req.remote_addr()).await?;
         let msg = $req.into_inner();
-        $self.log($name, msg.summary());
-        let resp = $self.client().$method(Request::new(msg)).await?;
+        $self.log(conn, $name, msg.summary());
+        let resp = c.$method(Request::new(msg)).await?;
         Ok(Response::new(passthrough_stream(resp.into_inner())))
     }};
 }
@@ -240,13 +279,15 @@ impl CompactTxStreamer for Gateway {
     /// By hash only: passed through (a hash names the block anyway).
     async fn get_block(&self, r: Request<BlockId>) -> Result<Response<CompactBlock>, Status> {
         if r.get_ref().hash.is_empty() {
-            return Ok(Response::new(self.grid.clone().single(r.into_inner().height, false).await?));
+            let (c, conn) = self.session(r.remote_addr()).await?;
+            return Ok(Response::new(self.grid.clone().single(c, conn, r.into_inner().height, false).await?));
         }
         unary!(self, r, get_block, "GetBlock")
     }
     async fn get_block_nullifiers(&self, r: Request<BlockId>) -> Result<Response<CompactBlock>, Status> {
         if r.get_ref().hash.is_empty() {
-            return Ok(Response::new(self.grid.clone().single(r.into_inner().height, true).await?));
+            let (c, conn) = self.session(r.remote_addr()).await?;
+            return Ok(Response::new(self.grid.clone().single(c, conn, r.into_inner().height, true).await?));
         }
         unary!(self, r, get_block_nullifiers, "GetBlockNullifiers")
     }
@@ -254,7 +295,8 @@ impl CompactTxStreamer for Gateway {
     type GetBlockRangeStream = BoxStream<CompactBlock>;
     /// Grid-aligned: upstream sees only whole grid cells; the wallet gets exactly its range.
     async fn get_block_range(&self, r: Request<BlockRange>) -> Result<Response<Self::GetBlockRangeStream>, Status> {
-        Ok(Response::new(self.grid.clone().range(r.into_inner(), false).await?))
+        let (c, conn) = self.session(r.remote_addr()).await?;
+        Ok(Response::new(self.grid.clone().range(c, conn, r.into_inner(), false).await?))
     }
 
     type GetBlockRangeNullifiersStream = BoxStream<CompactBlock>;
@@ -262,7 +304,8 @@ impl CompactTxStreamer for Gateway {
         &self,
         r: Request<BlockRange>,
     ) -> Result<Response<Self::GetBlockRangeNullifiersStream>, Status> {
-        Ok(Response::new(self.grid.clone().range(r.into_inner(), true).await?))
+        let (c, conn) = self.session(r.remote_addr()).await?;
+        Ok(Response::new(self.grid.clone().range(c, conn, r.into_inner(), true).await?))
     }
 
     async fn get_transaction(&self, r: Request<TxFilter>) -> Result<Response<RawTransaction>, Status> {
@@ -318,11 +361,11 @@ impl CompactTxStreamer for Gateway {
         &self,
         r: Request<Streaming<Address>>,
     ) -> Result<Response<Balance>, Status> {
-        self.log("GetTaddressBalanceStream", String::new());
+        let (mut c, conn) = self.session(r.remote_addr()).await?;
+        self.log(conn, "GetTaddressBalanceStream", String::new());
         // Collect first so a client-side stream error fails the call instead of being dropped.
         let addrs: Vec<Address> = r.into_inner().collect::<Vec<_>>().await.into_iter().collect::<Result<_, _>>()?;
-        let resp = self
-            .client()
+        let resp = c
             .get_taddress_balance_stream(futures::stream::iter(addrs))
             .await
             ?;

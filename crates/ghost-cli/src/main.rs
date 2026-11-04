@@ -110,8 +110,19 @@ impl NymArgs {
         Ok((Transport::nym(sync, "nym-sync", self.nym_sync), Transport::nym(bcast, "nym-broadcast", self.nym_broadcast)))
     }
 
-    /// Fail closed: refuse to start with --nym unless both clients are listening.
+    /// Fail closed: refuse to start with --nym unless both clients are listening on different exits.
     async fn require_up(&self) -> Result<(), Fail> {
+        if self.nym {
+            let ip = |id| nym_exit(id).and_then(|s| s.split('(').nth(1).map(|x| x.trim_end_matches(')').to_string()));
+            if let (Some(a), Some(b)) = (ip("ghost-sync"), ip("ghost-bcast")) {
+                if a == b {
+                    return Err(Fail::runtime(
+                        format!("sync and broadcast Nym clients use the same exit IP {a}"),
+                        "run scripts/nym_setup.sh up --reinit to pick two different exits",
+                    ));
+                }
+            }
+        }
         for a in [self.nym_sync, self.nym_broadcast] {
             if self.nym && tokio::net::TcpStream::connect(a).await.is_err() {
                 return Err(Fail::runtime(
@@ -209,20 +220,20 @@ async fn up(a: UpArgs, json: bool) -> Result<u8, Fail> {
     a.nym.require_up().await?;
     let (sync, bcast) = a.nym.transports(upstream.clone(), bcast_upstream.clone())?;
     let broadcaster = FreshConnBroadcaster { transport: bcast };
-    let scheduler = Scheduler::new(open_queue()?, policy, broadcaster);
+    let scheduler = Scheduler::new(open_queue()?, policy, broadcaster, if a.nym.nym { "nym" } else { "direct" });
     let cache = BlockCache::open(&data_dir().join("blocks.sqlite"))
         .map_err(|e| Fail::runtime(format!("cannot open block cache: {e:#}"), "check that ~/.ghost-layer is writable"))?;
     let gw = ghost_gateway::Gateway::connect(&sync, scheduler.clone(), send_mode, cache).await.map_err(|e| {
         Fail::runtime(format!("cannot reach upstream {}: {e:#}", upstream.uri()), "run `ghost doctor` to diagnose")
     })?;
-    let resumed = scheduler
+    let (resumed, held) = scheduler
         .resume()
         .map_err(|e| Fail::runtime(format!("cannot resume queue: {e:#}"), "inspect ~/.ghost-layer/ghost.sqlite"))?;
 
     if json {
         println!("{}", json!({"ok": true, "listen": listen.to_string(), "sync_upstream": upstream.uri(),
             "broadcast_upstream": bcast_upstream.uri(), "nym": a.nym.nym, "profile": a.profile,
-            "policy": policy, "send_mode": a.send_mode, "resumed_pending": resumed}));
+            "policy": policy, "send_mode": a.send_mode, "resumed_pending": resumed, "held_nym_only": held}));
     } else {
         println!("👻 Ghost Layer up on {listen}");
         println!("   sync      → {} (one long-lived connection)", upstream.uri());
@@ -240,7 +251,10 @@ async fn up(a: UpArgs, json: bool) -> Result<u8, Fail> {
             println!("   ⚠️  not hidden in direct mode: your IP (same on both paths) — use --nym");
         }
         if resumed > 0 {
-            println!("   ↻ resumed {resumed} queued broadcast(s) from the previous run");
+            println!("   ↻ resumed {resumed} queued broadcast(s) from the previous run (fresh random delays)");
+        }
+        if held > 0 {
+            println!("   ⏸  {held} broadcast(s) queued under Nym are held: restart with --nym to send them");
         }
     }
     ghost_gateway::serve(gw, listen)
@@ -389,11 +403,13 @@ async fn doctor(server: &str, listen: SocketAddr, nym: NymArgs, json: bool) -> R
     let mut checks = Vec::new();
     let mut add = |name, ok, detail: String| checks.push(Check { name, ok, detail });
 
-    match Transport::direct(upstream.clone(), "direct").fresh().await {
-        Err(e) => add("upstream reachable", false, format!("{}: {e:#}", upstream.uri())),
+    // In --nym mode the upstream is only ever contacted through the mixnet.
+    let probe = if nym.nym { Transport::nym(upstream.clone(), "nym-sync", nym.nym_sync) } else { Transport::direct(upstream.clone(), "direct") };
+    match probe.fresh().await {
+        Err(e) => add("upstream reachable", false, format!("{} via {}: {e:#}", upstream.uri(), probe.label)),
         Ok(conn) => {
             let mut c = conn.client;
-            add("upstream reachable", true, upstream.uri());
+            add("upstream reachable", true, format!("{} via {}", upstream.uri(), probe.label));
             add("tls", upstream.tls, if upstream.tls { "TLS (webpki roots)".into() } else { "plaintext (loopback)".into() });
             match c.get_lightd_info(Empty {}).await {
                 Ok(i) => {
@@ -438,13 +454,6 @@ async fn doctor(server: &str, listen: SocketAddr, nym: NymArgs, json: bool) -> R
                 Ok(ip) => add(name, true, format!("{addr} up, exit IP {ip} [{}]", nym_exit(id).unwrap_or_default())),
                 Err(e) => add(name, false, format!("{addr}: {e:#} → scripts/nym_setup.sh up")),
             }
-        }
-        match Transport::nym(upstream.clone(), "nym-sync", nym.nym_sync).fresh().await {
-            Ok(mut c) => match c.client.get_latest_block(ChainSpec {}).await {
-                Ok(b) => add("upstream via Nym", true, format!("tip {} through the mixnet", b.into_inner().height)),
-                Err(e) => add("upstream via Nym", false, e.to_string()),
-            },
-            Err(e) => add("upstream via Nym", false, format!("{e:#}")),
         }
     }
     let all_ok = checks.iter().all(|c| c.ok);

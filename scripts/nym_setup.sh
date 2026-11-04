@@ -47,8 +47,10 @@ pick_providers() {
   local tmp; tmp="$(mktemp -d)"
   curl -fsS --max-time 60 "$API/unstable/nym-nodes/skimmed/exit-gateways/all" -o "$tmp/exits.json"
   curl -fsS --max-time 60 "$API/nym-nodes/described?per_page=5000" -o "$tmp/described.json"
+  EXCLUDE_IPS="$(cat "$DIR"/ghost-*.provider 2>/dev/null | awk '{print $2}' | tr '\n' ' ')" \
   python3 -I - "$tmp/exits.json" "$tmp/described.json" <<'PY'
-import json, random, sys
+import json, os, random, sys
+exclude = set(os.environ.get("EXCLUDE_IPS", "").split())  # exits already used by the other client
 exits = json.load(open(sys.argv[1]))["nodes"]
 exits = exits["data"] if isinstance(exits, dict) else exits
 desc = json.load(open(sys.argv[2]))
@@ -62,15 +64,15 @@ good = [e for e in exits
         if e.get("supported_roles", {}).get("exit_nr") and float(e.get("performance", 0)) >= 0.95
         and e["node_id"] in nr and e.get("ip_addresses")]
 random.SystemRandom().shuffle(good)
-chosen, ips = [], set()
+chosen, ips = [], set(exclude)
 for e in good:
     if e["ip_addresses"][0] in ips:
         continue
     ips.add(e["ip_addresses"][0]); chosen.append(e)
     if len(chosen) == 2:
         break
-if len(chosen) < 2:
-    sys.exit("fewer than two healthy exits found")
+if not chosen:
+    sys.exit("no healthy exit found")
 for e in chosen:
     print(e["node_id"], e["ip_addresses"][0], nr[e["node_id"]])
 PY
@@ -78,14 +80,15 @@ PY
 }
 
 stop
-if [[ "$REINIT" == "--reinit" ]]; then rm -rf "$HOME/.nym/socks5-clients/ghost-sync" "$HOME/.nym/socks5-clients/ghost-bcast"; fi
+if [[ "$REINIT" == "--reinit" ]]; then
+  rm -rf "$HOME/.nym/socks5-clients/ghost-sync" "$HOME/.nym/socks5-clients/ghost-bcast" "$DIR"/ghost-*.provider
+fi
 
-PICKS=""
 for pair in ghost-sync:1080 ghost-bcast:1081; do
   id=${pair%%:*}; port=${pair##*:}
   if [[ ! -d "$HOME/.nym/socks5-clients/$id" ]]; then
-    [[ -n "$PICKS" ]] || PICKS="$(pick_providers)" || die "could not choose exits from $API"
-    line=$([[ $id == ghost-sync ]] && echo "$PICKS" | sed -n 1p || echo "$PICKS" | sed -n 2p)
+    # Fresh pick per client; the other client's exit IP is excluded, so exits never coincide.
+    line="$(pick_providers | sed -n 1p)" || die "could not choose an exit from $API"
     read -r node ip provider <<<"$line"
     echo "→ init $id: exit node $node ($ip)"
     "$BIN" init --id "$id" --provider "$provider" --use-reply-surbs true >"$DIR/$id.init.log" 2>&1 \

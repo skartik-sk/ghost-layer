@@ -106,6 +106,8 @@ impl Queue {
                received_at_ms INTEGER NOT NULL, scheduled_at_ms INTEGER NOT NULL, sent_at_ms INTEGER,
                conn_id INTEGER, transport TEXT, endpoint TEXT, error_code INTEGER, error_message TEXT);",
         )?;
+        // Privacy mode the tx was queued under ("nym" or "direct"); older dbs lack the column.
+        let _ = db.execute("ALTER TABLE broadcasts ADD COLUMN mode TEXT NOT NULL DEFAULT 'direct'", []);
         Ok(Self { db: Mutex::new(db) })
     }
 
@@ -136,18 +138,18 @@ impl Queue {
         Ok(self.list()?.into_iter().find(|r| r.txid == txid))
     }
 
-    fn insert(&self, txid: &str, raw: &[u8], scheduled_at_ms: i64) -> anyhow::Result<()> {
+    fn insert(&self, txid: &str, raw: &[u8], scheduled_at_ms: i64, mode: &str) -> anyhow::Result<()> {
         self.db.lock().unwrap().execute(
-            "INSERT INTO broadcasts (txid,raw,status,received_at_ms,scheduled_at_ms) VALUES (?1,?2,'pending',?3,?4)",
-            params![txid, raw, now_ms(), scheduled_at_ms],
+            "INSERT INTO broadcasts (txid,raw,status,received_at_ms,scheduled_at_ms,mode) VALUES (?1,?2,'pending',?3,?4,?5)",
+            params![txid, raw, now_ms(), scheduled_at_ms, mode],
         )?;
         Ok(())
     }
 
-    fn pending(&self) -> anyhow::Result<Vec<(String, Vec<u8>, i64)>> {
+    fn pending(&self) -> anyhow::Result<Vec<(String, Vec<u8>, i64, String)>> {
         let db = self.db.lock().unwrap();
-        let mut st = db.prepare("SELECT txid,raw,scheduled_at_ms FROM broadcasts WHERE status='pending'")?;
-        let rows = st.query_map([], |r| Ok((r.get(0)?, r.get(1)?, r.get(2)?)))?;
+        let mut st = db.prepare("SELECT txid,raw,scheduled_at_ms,mode FROM broadcasts WHERE status='pending'")?;
+        let rows = st.query_map([], |r| Ok((r.get(0)?, r.get(1)?, r.get(2)?, r.get(3)?)))?;
         Ok(rows.collect::<Result<_, _>>()?)
     }
 
@@ -180,20 +182,27 @@ const RETRIES: u32 = 3;
 
 pub struct Scheduler<B: Broadcaster> {
     queue: Arc<Queue>,
+    /// "nym" or "direct": recorded with every queued tx.
+    mode: &'static str,
     policy: Policy,
     broadcaster: Arc<B>,
     waiters: Mutex<std::collections::HashMap<String, watch::Receiver<Option<Outcome>>>>,
 }
 
 impl<B: Broadcaster> Scheduler<B> {
-    pub fn new(queue: Arc<Queue>, policy: Policy, broadcaster: B) -> Arc<Self> {
-        Arc::new(Self { queue, policy, broadcaster: Arc::new(broadcaster), waiters: Default::default() })
+    pub fn new(queue: Arc<Queue>, policy: Policy, broadcaster: B, mode: &'static str) -> Arc<Self> {
+        Arc::new(Self { queue, mode, policy, broadcaster: Arc::new(broadcaster), waiters: Default::default() })
     }
 
-    /// Re-schedules txs left pending by a previous run (restart safety).
-    pub fn resume(self: &Arc<Self>) -> anyhow::Result<usize> {
-        let pending = self.queue.pending()?;
-        for (txid, raw, at) in &pending {
+    /// Re-schedules txs left pending by a previous run (restart safety). A tx queued under Nym
+    /// is never sent by a direct-mode run: it stays pending (returned as `held`).
+    pub fn resume(self: &Arc<Self>) -> anyhow::Result<(usize, usize)> {
+        let (pending, held): (Vec<_>, Vec<_>) =
+            self.queue.pending()?.into_iter().partition(|(_, _, _, mode)| !(mode == "nym" && self.mode != "nym"));
+        for (txid, ..) in &held {
+            warn!(target: "broadcast", %txid, "queued under Nym; NOT sending in direct mode. Restart with --nym to send it");
+        }
+        for (txid, raw, at, _) in &pending {
             // An overdue tx must not go out the instant we restart (and never together with other
             // resumed txs): give each its own fresh random delay.
             let at = if *at <= now_ms() {
@@ -206,7 +215,7 @@ impl<B: Broadcaster> Scheduler<B> {
             info!(target: "broadcast", %txid, in_s = (at - now_ms()) / 1000, "resuming queued tx from previous run");
             self.spawn(txid.clone(), raw.clone(), at);
         }
-        Ok(pending.len())
+        Ok((pending.len(), held.len()))
     }
 
     /// Queues a tx and returns a receiver that resolves to its real outcome.
@@ -236,7 +245,7 @@ impl<B: Broadcaster> Scheduler<B> {
         }
         let delay = self.policy.sample();
         let at = now_ms() + delay.as_millis() as i64;
-        self.queue.insert(&txid, &raw, at)?;
+        self.queue.insert(&txid, &raw, at, self.mode)?;
         info!(target: "broadcast", %txid, delay_s = delay.as_secs_f64(), "queued; will broadcast on a fresh connection after random delay");
         Ok((txid.clone(), self.spawn(txid, raw, at)))
     }
