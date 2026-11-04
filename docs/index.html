@@ -1,0 +1,116 @@
+<!doctype html>
+<html lang="en">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<title>Ghost Layer: unlink your Zcash payments from your wallet</title>
+<meta name="description" content="A local gateway that stops Zcash light-wallet servers from linking your payments to your wallet. Measured on real testnet payments: 100% to 0% linked.">
+<style>
+:root{--canvas:#0D121A;--card:#151C27;--sunk:#10161F;--text:#E7ECF3;--muted:#97A1B2;--border:#263041;--accent:#2BB3A3;--accent-ink:#06201D;--accent-soft:#10302D;--bad:#FF8F84;--warn:#F2C15A;
+--sans:system-ui,-apple-system,"Segoe UI",Roboto,"Helvetica Neue",Arial,sans-serif;--mono:ui-monospace,SFMono-Regular,Menlo,Consolas,monospace}
+@media (prefers-color-scheme: light){:root{--canvas:#EEF1F5;--card:#FFFFFF;--sunk:#F6F8FA;--text:#121826;--muted:#5B6475;--border:#DCE1E8;--accent:#0F766E;--accent-ink:#FFFFFF;--accent-soft:#E3F2EF;--bad:#B42318;--warn:#8A5A00}}
+*{box-sizing:border-box}html,body{margin:0}
+body{background:var(--canvas);color:var(--text);font-family:var(--sans);line-height:1.55;-webkit-font-smoothing:antialiased}
+a{color:var(--accent);text-underline-offset:3px}
+:focus-visible{outline:2px solid var(--accent);outline-offset:3px;border-radius:6px}
+.wrap{max-width:1120px;margin:0 auto;padding:0 20px}
+nav{display:flex;justify-content:space-between;align-items:center;padding:20px 0}
+nav b{font-size:18px}nav .links{display:flex;gap:20px;font-size:14px}nav .links a{color:var(--muted);text-decoration:none}nav .links a:hover{color:var(--text)}
+.hero{padding:72px 0 56px;display:grid;gap:28px}
+.hero h1{font-size:clamp(40px,6vw,72px);line-height:1.04;letter-spacing:-.03em;margin:0;max-width:16ch}
+.hero p{font-size:clamp(17px,2vw,21px);color:var(--muted);max-width:60ch;margin:0}
+.cta{display:flex;flex-wrap:wrap;gap:12px;align-items:center}
+.btn{display:inline-block;background:var(--accent);color:var(--accent-ink);font-weight:650;padding:12px 20px;border-radius:10px;text-decoration:none}
+.btn.ghost{background:transparent;color:var(--text);border:1px solid var(--border)}
+code.install{font-family:var(--mono);font-size:15px;background:var(--sunk);border:1px solid var(--border);padding:11px 16px;border-radius:10px}
+.stat{display:grid;grid-template-columns:repeat(3,minmax(0,1fr));gap:16px;margin:8px 0 72px}
+.stat div{background:var(--card);border:1px solid var(--border);border-radius:16px;padding:24px}
+.stat b{display:block;font-size:56px;line-height:1;letter-spacing:-.03em;font-variant-numeric:tabular-nums}
+.stat .bad{color:var(--bad)}.stat .good{color:var(--accent)}
+.stat span{color:var(--muted);font-size:15px}
+section{padding:56px 0;border-top:1px solid var(--border)}
+h2{font-size:clamp(28px,3.4vw,40px);letter-spacing:-.02em;margin:0 0 12px;line-height:1.15}
+.lede{color:var(--muted);font-size:18px;max-width:62ch;margin:0 0 32px}
+.grid3{display:grid;grid-template-columns:repeat(3,minmax(0,1fr));gap:16px}
+.grid4{display:grid;grid-template-columns:repeat(2,minmax(0,1fr));gap:16px}
+.card{background:var(--card);border:1px solid var(--border);border-radius:16px;padding:24px}
+.card h3{margin:0 0 6px;font-size:18px}.card p{margin:0;color:var(--muted)}
+ol.steps{counter-reset:s;list-style:none;padding:0;margin:0;display:grid;grid-template-columns:repeat(2,minmax(0,1fr));gap:16px}
+ol.steps li{counter-increment:s;background:var(--card);border:1px solid var(--border);border-radius:16px;padding:24px 24px 24px 72px;position:relative}
+ol.steps li::before{content:counter(s);position:absolute;left:24px;top:22px;width:32px;height:32px;border-radius:50%;background:var(--accent-soft);color:var(--accent);font-weight:700;display:grid;place-items:center}
+ol.steps b{display:block;font-size:17px;margin-bottom:4px}ol.steps span{color:var(--muted)}
+figure{margin:0}figure img{width:100%;height:auto;display:block;border-radius:14px;border:1px solid var(--border);background:var(--sunk)}
+figcaption{color:var(--muted);font-size:14px;margin-top:10px}
+.shots{display:grid;grid-template-columns:repeat(2,minmax(0,1fr));gap:24px}
+.wide{grid-column:1/-1}
+table{width:100%;border-collapse:collapse;font-size:15px}td,th{text-align:left;padding:12px 10px;border-bottom:1px solid var(--border);vertical-align:top}th{color:var(--muted);font-weight:600}
+.mono{font-family:var(--mono);font-size:13.5px;word-break:break-all}
+footer{padding:40px 0 64px;border-top:1px solid var(--border);color:var(--muted);font-size:14px;display:flex;flex-wrap:wrap;gap:16px;justify-content:space-between}
+@media (max-width:820px){.grid3,.stat,.grid4,.shots,ol.steps{grid-template-columns:1fr}nav .links{display:none}}
+</style>
+</head>
+<body>
+<div class="wrap">
+<nav><b>👻 Ghost Layer</b><div class="links"><a href="#how">How it works</a><a href="#proof">Evidence</a><a href="#wallet">Ghost Wallet</a><a href="https://github.com/skartik-sk/ghost-layer">GitHub</a></div></nav>
+
+<header class="hero">
+<h1>Your Zcash payment is private. Is it still yours to hide?</h1>
+<p>Zcash hides who paid whom and how much. But the light-wallet server your wallet talks to sees your IP, and when your wallet syncs and then sends seconds later, it can tell the payment is yours. Ghost Layer is a local gateway that breaks that link. Your wallet doesn’t change.</p>
+<div class="cta"><a class="btn" href="https://github.com/skartik-sk/ghost-layer">View on GitHub</a><a class="btn ghost" href="https://crates.io/crates/ghost-layer">crates.io</a><code class="install">cargo install ghost-layer</code></div>
+</header>
+
+<div class="stat" aria-label="Measured results">
+<div><b class="bad">100%</b><span>of payments a curious server could link to the wallet, without Ghost Layer</span></div>
+<div><b class="good">0%</b><span>with Ghost Layer, on the same real payments</span></div>
+<div><b class="good">0%</b><span>over Nym on public testnet, even by IP address</span></div>
+</div>
+</div>
+
+<section id="how"><div class="wrap">
+<h2>What happens when you send</h2>
+<p class="lede">Four things change between your wallet and the server. None of them need your keys.</p>
+<ol class="steps">
+<li><b>Sync in whole grid cells</b><span>The server only sees 1152-block cells (Nym’s network-wide rule), the same as every other wallet in that cell.</span></li>
+<li><b>Sign on your machine</b><span>Your wallet signs the payment. Ghost Layer never sees seeds or spending keys.</span></li>
+<li><b>Wait a random delay</b><span>The payment is held for a random 10–40 seconds (or minutes, in privacy mode), so it can’t be timed against your sync.</span></li>
+<li><b>Broadcast on a fresh connection</b><span>A brand-new connection, never the sync one, through a different Nym exit. Nym is on by default and fails closed.</span></li>
+</ol>
+</div></section>
+
+<section id="proof"><div class="wrap">
+<h2>Measured on real payments</h2>
+<p class="lede">We played the nosy server: every connection, timestamp and block range it could log, then tried to link each payment to a wallet.</p>
+<table>
+<tr><th>Heuristic</th><th>Without Ghost Layer</th><th>With Ghost Layer</th><th>+ Nym on testnet</th></tr>
+<tr><td>Sent seconds after sync</td><td>5 / 5 linked</td><td>0 / 5</td><td>0 / 5</td></tr>
+<tr><td>Sessions chained by block ranges</td><td>4 / 5</td><td>0 / 5</td><td>0 / 5</td></tr>
+<tr><td>Same IP for sync and send</td><td>5 / 5</td><td>5 / 5 (no Nym)</td><td>0 / 5</td></tr>
+<tr><td>Median time from tip to send</td><td>3.0 s</td><td>22.4 s</td><td>32.4 s</td></tr>
+</table>
+<div class="shots" style="margin-top:32px">
+<figure class="wide"><img src="assets/explorer-after-tx.png" alt="Zcash testnet explorer: our shielded version 6 transaction in block 4582118" loading="lazy"><figcaption>A real shielded NU7 payment sent through Ghost Layer and Nym. <a href="https://testnet.zcashexplorer.app/transactions/09f0f0b01942a658197f65563a977c66fc19f8823268b0e547470e022bd3ce69">Open it in the explorer</a>.</figcaption></figure>
+</div>
+</div></section>
+
+<section id="wallet"><div class="wrap">
+<h2>Ghost Wallet</h2>
+<p class="lede">A small local app built on the Ghost Layer crates: send privately, prove one payment, and watch exactly what the server can see.</p>
+<div class="shots">
+<figure><img src="assets/wallet-v2-pay.png" alt="Ghost Wallet Pay tab with the five steps of what happens when you send" loading="lazy"><figcaption>Pay: address, amount, Send privately.</figcaption></figure>
+<figure><img src="assets/wallet-proof-verify.png" alt="Ghost Wallet Proof tab showing a valid ZecProof" loading="lazy"><figcaption>ZecProof: prove one payment, checked against the chain.</figcaption></figure>
+<figure class="wide"><img src="assets/wallet-v2-live.png" alt="Ghost Wallet live view: 100% to 0% linked, attacker view not linked, broadcast queue, aligned sync grid" loading="lazy"><figcaption>What the server sees, live from the real queue and event log.</figcaption></figure>
+</div>
+</div></section>
+
+<section><div class="wrap">
+<h2>Built to be used, and checked</h2>
+<div class="grid3">
+<div class="card"><h3>One command</h3><p><span class="mono">ghost pay --wallet ./w --to utest1… --amount 0.001</span> syncs, sends, waits and verifies.</p></div>
+<div class="card"><h3>For AI agents</h3><p>An MCP server with read-only tools, llms.txt, and a stable JSON contract tested against real output.</p></div>
+<div class="card"><h3>Honest limits</h3><p>The chain still shows that a payment happened; your ISP sees you use Nym. <a href="https://github.com/skartik-sk/ghost-layer/blob/main/PRIVACY.md">Read the privacy note</a>.</p></div>
+</div>
+</div></section>
+
+<div class="wrap"><footer><span>Ghost Layer · Free Society Hack 2026 · MIT</span><span><a href="https://github.com/skartik-sk/ghost-layer">GitHub</a> · <a href="https://crates.io/crates/ghost-layer">crates.io</a> · <a href="https://github.com/skartik-sk/ghost-layer/tree/main/evidence">Evidence</a></span></footer></div>
+</body>
+</html>
