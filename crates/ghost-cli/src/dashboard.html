@@ -113,6 +113,18 @@ ol.steps b { display: block; font-size: 14px; }
 ol.steps span { color: var(--muted); font-size: 13px; }
 .note { margin-top: 18px; padding-top: 14px; border-top: 1px solid var(--border); font-size: 13px; color: var(--muted); }
 @media (prefers-reduced-motion: no-preference) { nav.tabs button, button.primary { transition: background .15s, color .15s, filter .15s; } }
+
+/* Live view polish */
+main.cards { grid-template-columns: repeat(auto-fit, minmax(min(100%, 360px), 1fr)); align-items: stretch; }
+main.cards .card { display: flex; flex-direction: column; }
+.ips { grid-template-columns: 1fr 1fr; }
+@media (max-width: 520px) { .ips { grid-template-columns: 1fr; } }
+.ip { white-space: nowrap; font-size: 15px; letter-spacing: -.01em; overflow: hidden; text-overflow: ellipsis; }
+#queue, #attacker { max-height: 560px; overflow-y: auto; padding-right: 6px; margin-right: -6px; scrollbar-width: thin; }
+#queue .row { padding: 10px 0; }
+#queue .row .links { margin-top: 2px; }
+#queue .row .muted.small { line-height: 1.45; }
+.big { font-size: 40px; }
 </style>
 </head>
 <body>
@@ -182,28 +194,24 @@ ol.steps span { color: var(--muted); font-size: 13px; }
 
 <main class="cards" id="tab-live">
   <section class="card">
+    <h2>Before vs after</h2>
+    <div id="before"><p class="muted">loading…</p></div>
+  </section>
+  <section class="card">
     <h2>What the server sees</h2>
     <div id="sees"><p class="muted">loading…</p></div>
   </section>
-
-  <section class="card">
-    <h2>Broadcast queue</h2>
-    <div id="queue"><p class="muted">loading…</p></div>
-  </section>
-
-  <section class="card">
-    <h2>Sync grid</h2>
-    <div id="grid"><p class="muted">loading…</p></div>
-  </section>
-
   <section class="card">
     <h2>Attacker view</h2>
     <div id="attacker"><p class="muted">loading…</p></div>
   </section>
-
   <section class="card">
-    <h2>Before vs after</h2>
-    <div id="before"><p class="muted">loading…</p></div>
+    <h2>Broadcast queue</h2>
+    <div id="queue"><p class="muted">loading…</p></div>
+  </section>
+  <section class="card">
+    <h2>Sync grid</h2>
+    <div id="grid"><p class="muted">loading…</p></div>
   </section>
 </main>
 
@@ -368,7 +376,7 @@ ol.steps span { color: var(--muted); font-size: 13px; }
 
     add(box, add(el('div', 'counts'),
       add(el('div'), el('div', 'big good', num(g.aligned)), el('div', 'muted small', 'aligned')),
-      add(el('div'), el('div', 'big bad', num(g.unaligned)), el('div', 'muted small', 'unaligned'))));
+      add(el('div'), el('div', 'big ' + (g.unaligned > 0 ? 'bad' : 'muted'), num(g.unaligned)), el('div', 'muted small', 'unaligned'))));
 
     var ranges = Array.isArray(g.ranges) ? g.ranges.slice(-10).reverse() : [];
     if (!ranges.length) { add(box, placeholder('no ranges yet')); return; }
