@@ -9,6 +9,14 @@ tonic.workspace = true
 tonic-prost.workspace = true
 prost.workspace = true
 anyhow.workspace = true
+tokio.workspace = true
+tokio-socks.workspace = true
+tokio-rustls.workspace = true
+rustls.workspace = true
+webpki-roots.workspace = true
+hyper-util.workspace = true
+tower.workspace = true
+http.workspace = true
 
 [build-dependencies]
 tonic-prost-build.workspace = true

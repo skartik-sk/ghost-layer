@@ -1,0 +1,4 @@
+your real IP            182.70.x.x
+server sees on SYNC      195.238.126.176  via Nym 127.0.0.1:1080 [exit node 3055 (195.238.126.176)]
+server sees on BROADCAST 157.254.54.45  via Nym 127.0.0.1:1081 [exit node 2718 (157.254.54.45)]
+✅ three different IPs: the server cannot link sync and broadcast by IP

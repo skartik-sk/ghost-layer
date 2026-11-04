@@ -1,0 +1,5 @@
+# Fail-closed test (2026-11-04 ~12:03 UTC)
+$ kill <nym-socks5-client ghost-sync pid>          # 127.0.0.1:1080 closed
+$ zcash-devtool wallet -w ./w1 sync -s 127.0.0.1:9067
+Error: code: 'The service is currently unavailable', message: "Proxy server unreachable"
+(exit 1). Ghost Layer returned gRPC UNAVAILABLE; it has no code path to a direct connection in --nym mode.

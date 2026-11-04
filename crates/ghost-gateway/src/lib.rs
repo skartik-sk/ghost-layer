@@ -100,13 +100,35 @@ impl GridFetcher {
         } else {
             c.get_block_range(req).await?.into_inner()
         };
+        // Validate before caching: one block per height, contiguous inside the cell, hash-linked.
+        let bad = |why: String| Status::data_loss(format!("ghost: upstream cell {}..={} rejected: {why}", cell.0, cell.1));
         let mut out = Vec::new();
+        let mut prev: Option<(u64, Vec<u8>)> = None;
         while let Some(b) = stream.next().await {
             let b = b?;
+            let want = prev.as_ref().map(|(h, _)| h + 1).unwrap_or(cell.0);
+            if b.height != want || b.height > cell.1 {
+                return Err(bad(format!("expected height {want}, got {}", b.height)));
+            }
+            if let Some((_, ph)) = &prev {
+                if !b.prev_hash.is_empty() && !ph.is_empty() && &b.prev_hash != ph {
+                    return Err(bad(format!("block {} does not link to its predecessor", b.height)));
+                }
+            }
+            prev = Some((b.height, b.hash.clone()));
             out.push((b.height, b.encode_to_vec()));
+        }
+        if out.len() as u64 != cell.1 - cell.0 + 1 {
+            return Err(bad(format!("got {} blocks, expected {}", out.len(), cell.1 - cell.0 + 1)));
         }
         self.cache.put_cell(kind, cell, &out).map_err(internal)?;
         Ok(out)
+    }
+
+    async fn single(self: Arc<Self>, height: u64, nullifiers: bool) -> Result<CompactBlock, Status> {
+        let id = Some(BlockId { height, hash: vec![] });
+        let mut s = self.range(BlockRange { start: id.clone(), end: id, pool_types: vec![] }, nullifiers).await?;
+        s.next().await.unwrap_or_else(|| Err(Status::not_found(format!("block {height} not found"))))
     }
 
     async fn range(self: Arc<Self>, msg: BlockRange, nullifiers: bool) -> Result<BoxStream<CompactBlock>, Status> {
@@ -214,10 +236,18 @@ impl CompactTxStreamer for Gateway {
         }
         resp
     }
+    /// By height: served from its grid cell, so upstream never sees the exact height.
+    /// By hash only: passed through (a hash names the block anyway).
     async fn get_block(&self, r: Request<BlockId>) -> Result<Response<CompactBlock>, Status> {
+        if r.get_ref().hash.is_empty() {
+            return Ok(Response::new(self.grid.clone().single(r.into_inner().height, false).await?));
+        }
         unary!(self, r, get_block, "GetBlock")
     }
     async fn get_block_nullifiers(&self, r: Request<BlockId>) -> Result<Response<CompactBlock>, Status> {
+        if r.get_ref().hash.is_empty() {
+            return Ok(Response::new(self.grid.clone().single(r.into_inner().height, true).await?));
+        }
         unary!(self, r, get_block_nullifiers, "GetBlockNullifiers")
     }
 
