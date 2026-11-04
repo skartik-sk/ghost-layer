@@ -1,5 +1,7 @@
 # 👻 Ghost Layer
 
+[crates.io: `ghost-layer`](https://crates.io/crates/ghost-layer) · `ghost-layer-core` · `ghost-layer-transport` · `ghost-layer-gateway` · `ghost-layer-attacker`
+
 **Everyone hid your IP. Nobody stopped your payment from being linked to you. Ghost Layer does, and an independent tool and our own attacker test measure it.**
 
 Built for Free Society Hack, Mumbai (Privacy track, Zcash), 4 Nov 2026. Zcash **testnet**, NU7 (branch `0x77190AD9`), Ironwood pool.
@@ -44,8 +46,7 @@ Ghost Layer is a small local gateway between any lightwalletd-compatible wallet 
 ## Quickstart: one command
 
 ```bash
-cargo build --release                       # Rust ≥ 1.85 + protoc → target/release/ghost
-                                            # (crates.io-ready: `cargo publish --workspace --dry-run` passes; see AGENTS.md)
+cargo install ghost-layer                   # from crates.io (needs Rust ≥ 1.85 + protoc), or: cargo build --release
 NYM_SOCKS5=/path/to/nym-socks5-client scripts/nym_setup.sh up   # optional: Nym (build from github.com/nymtech/nym)
 
 # a zcash-devtool testnet wallet (github.com/zcash/zcash-devtool); keys stay in it

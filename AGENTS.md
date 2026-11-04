@@ -52,7 +52,7 @@ Each crate's `README.md` is a copy of the root README (refresh it before a relea
 ```bash
 cargo publish --workspace --dry-run      # packages + verifies every crate from its packaged sources
 cargo login                              # a human, with their own crates.io token
-cargo publish --workspace                # irreversible
+cargo publish --workspace                # irreversible — v0.1.0 published 2026-11-04
 ```
 
 ## Conventions
