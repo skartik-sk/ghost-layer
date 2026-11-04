@@ -25,6 +25,12 @@ Ghost Layer is a small local gateway between any lightwalletd-compatible wallet 
 | 3 | **Grid-aligned sync:** upstream only ever sees whole 1152-block grid cells, using **Nym's network-wide `nym-swizzle-zcash` rule**; the wallet still gets exactly what it asked for | 📚 range fingerprint |
 | 4 | **Nym mixnet transport, on by default:** two `nym-socks5-client`s with different random exits, sync on one and broadcast on the other, **fail closed** (`--direct` opts out) | 🧑 IP |
 
+## Why this is needed (sources)
+
+- **The leak is real and measured by an independent tester.** ShadeCheck's README reports that an *unmodified Zingolib 7.0.0* wallet on Zebra 7.0.0 / Zaino 0.10.1 "sent a shielded payment … The separate test recorded 1,009 events and **two HIGH SC-002 findings**" ([ShadeCheck README](https://github.com/0xaje/ShadeCheck-)).
+- **Hiding the IP doesn't fix it.** Nym's `nym-swizzle-zcash` README on resume-point chaining and sync-then-send: "Both leaks survive any mixnet, VPN, or Tor circuit, because they live in the application's query pattern" ([nym-swizzle-zcash](https://github.com/nymtech/nym/tree/develop/sdk/rust/nym-swizzle-zcash)).
+- **Nobody had shipped the fix.** zecmix's README lists as *future plans*: "`--split` mode: send `SendTransaction` over a separate connection and identity from the sync session, so the server cannot link a broadcast to the wallet that synced" and "Optional random delay before broadcast" ([zecmix, Future plans](https://github.com/apeirs/zecmix#future-plans)). Ghost Layer ships both, plus Nym's grid rule, and measures the result.
+
 ## Evidence (real, committed, reproducible)
 
 | What | Result | File |
