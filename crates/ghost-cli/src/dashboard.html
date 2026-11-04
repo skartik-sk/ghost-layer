@@ -3,7 +3,7 @@
 <head>
 <meta charset="utf-8">
 <meta name="viewport" content="width=device-width, initial-scale=1">
-<title>Ghost Layer</title>
+<title>Ghost Wallet</title>
 <style>
 :root {
   --bg: #f5f6f8; --card: #ffffff; --text: #15171c; --muted: #646b78; --border: #e1e4ea;
@@ -66,15 +66,82 @@ h1 { font-size: 20px; margin: 0; }
 .arrow { font-size: 28px; color: var(--muted); }
 .links { display: flex; flex-wrap: wrap; gap: 4px 12px; margin-top: 4px; font-size: 13px; }
 .counts { display: flex; gap: 28px; }
+nav.tabs { display: flex; gap: 6px; margin: 0 0 16px; border-bottom: 1px solid var(--border); }
+nav.tabs button { font: inherit; background: none; border: 0; border-bottom: 2px solid transparent; color: var(--muted);
+  padding: 8px 12px; cursor: pointer; margin-bottom: -1px; }
+nav.tabs button[aria-selected="true"] { color: var(--text); border-bottom-color: var(--accent); font-weight: 600; }
+.panel { max-width: 640px; }
+.panel[hidden], main[hidden] { display: none; }
+form { display: flex; flex-direction: column; gap: 12px; }
+label { display: flex; flex-direction: column; gap: 4px; font-size: 13px; color: var(--muted); }
+input, textarea { font: inherit; color: var(--text); background: var(--bg); border: 1px solid var(--border); border-radius: 8px;
+  padding: 10px; width: 100%; }
+textarea { font-family: var(--mono); font-size: 12px; min-height: 90px; resize: vertical; }
+input:focus, textarea:focus { outline: 2px solid var(--accent); outline-offset: 1px; }
+button.primary { font: inherit; font-weight: 600; background: var(--accent); color: #fff; border: 0; border-radius: 8px;
+  padding: 10px 16px; cursor: pointer; align-self: flex-start; }
+button.primary:disabled { opacity: .5; cursor: progress; }
+.log { font-family: var(--mono); font-size: 12px; background: var(--bg); border: 1px solid var(--border); border-radius: 8px;
+  padding: 10px; white-space: pre-wrap; margin-top: 12px; max-height: 260px; overflow: auto; }
+.result { margin-top: 12px; padding: 12px; border-radius: 8px; }
+.result.okbox { background: var(--good-bg); color: var(--good); }
+.result.badbox { background: var(--bad-bg); color: var(--bad); }
+.result .mono { color: var(--text); }
+.big-count { font-size: 28px; font-weight: 700; }
+.row2 { display: grid; grid-template-columns: 2fr 1fr; gap: 12px; }
+@media (max-width: 480px) { .row2 { grid-template-columns: 1fr; } }
 </style>
 </head>
 <body>
 <header>
-  <h1>👻 Ghost Layer — what the server sees</h1>
+  <h1>👻 Ghost Wallet <span class="muted small">built on Ghost Layer</span></h1>
   <div class="status"><span class="dot" id="dot"></span><span id="age">connecting…</span></div>
 </header>
 
-<main class="cards">
+<nav class="tabs" role="tablist">
+  <button role="tab" id="t-pay" aria-selected="false" data-tab="pay">Pay</button>
+  <button role="tab" id="t-proof" aria-selected="false" data-tab="proof">Proof</button>
+  <button role="tab" id="t-live" aria-selected="true" data-tab="live">Live: what the server sees</button>
+</nav>
+
+<section class="panel" id="tab-pay" hidden>
+  <div class="card">
+    <h2>Send a private payment (testnet)</h2>
+    <p class="muted small" id="pay-note">Your wallet signs it locally; Ghost Layer holds it for a random delay, then broadcasts on a fresh connection.</p>
+    <form id="pay-form">
+      <label>To (utest1…)<input id="pay-to" required autocomplete="off" spellcheck="false" placeholder="utest1…"></label>
+      <div class="row2">
+        <label>Amount (TAZ)<input id="pay-amount" required inputmode="decimal" placeholder="0.001"></label>
+        <label>Memo (optional)<input id="pay-memo" maxlength="512" placeholder="thanks!"></label>
+      </div>
+      <button class="primary" type="submit" id="pay-btn">Send privately</button>
+    </form>
+    <div id="pay-out"></div>
+  </div>
+</section>
+
+<section class="panel" id="tab-proof" hidden>
+  <div class="card">
+    <h2>Create a ZecProof for a payment you sent</h2>
+    <p class="muted small">Reveals only that one output (recipient, amount, memo). Your viewing key never leaves this machine.</p>
+    <form id="pc-form">
+      <label>Transaction id<input id="pc-txid" required autocomplete="off" spellcheck="false" placeholder="64 hex characters"></label>
+      <label>Message (optional label, not signed)<input id="pc-msg" maxlength="256" placeholder="invoice #42"></label>
+      <button class="primary" type="submit" id="pc-btn">Create proof</button>
+    </form>
+    <div id="pc-out"></div>
+  </div>
+  <div class="card" style="margin-top:16px">
+    <h2>Verify a ZecProof</h2>
+    <form id="pv-form">
+      <label>Proof<textarea id="pv-proof" required spellcheck="false" placeholder="zecproof1…"></textarea></label>
+      <button class="primary" type="submit" id="pv-btn">Verify against the chain</button>
+    </form>
+    <div id="pv-out"></div>
+  </div>
+</section>
+
+<main class="cards" id="tab-live">
   <section class="card">
     <h2>What the server sees</h2>
     <div id="sees"><p class="muted">loading…</p></div>
@@ -402,6 +469,146 @@ h1 { font-size: 20px; margin: 0; }
   setStatus();
   poll();
   setInterval(tick, TICK_MS);
+})();
+</script>
+<script>
+(function () {
+  'use strict';
+  function $(id) { return document.getElementById(id); }
+  function el(tag, cls, text) {
+    var n = document.createElement(tag);
+    if (cls) n.className = cls;
+    if (text !== undefined && text !== null) n.textContent = String(text);
+    return n;
+  }
+  function clear(n) { while (n.firstChild) n.removeChild(n.firstChild); }
+  function safeLink(url) {
+    try { var u = new URL(url); if (u.protocol !== 'https:') return null; } catch (e) { return null; }
+    var a = el('a', null, url.replace(/^https:\/\//, '').slice(0, 60) + '… ↗');
+    a.href = url; a.target = '_blank'; a.rel = 'noopener noreferrer';
+    return a;
+  }
+
+  // Tabs (remembered in the URL hash)
+  var tabs = ['pay', 'proof', 'live'];
+  function show(t) {
+    if (tabs.indexOf(t) < 0) t = 'live';
+    tabs.forEach(function (x) {
+      $('t-' + x).setAttribute('aria-selected', String(x === t));
+      $('tab-' + x).hidden = x !== t;
+    });
+    if (location.hash !== '#' + t) history.replaceState(null, '', '#' + t);
+  }
+  Array.prototype.forEach.call(document.querySelectorAll('nav.tabs button'), function (b) {
+    b.addEventListener('click', function () { show(b.getAttribute('data-tab')); });
+  });
+  show((location.hash || '#live').slice(1));
+
+  // Server capabilities (pay / proof enabled, cap)
+  fetch('/api/state', { cache: 'no-store' }).then(function (r) { return r.json(); }).then(function (s) {
+    var app = s.app || {};
+    if (!app.pay_enabled) { $('pay-btn').disabled = true; $('pay-note').textContent = 'Pay is disabled. Start: ghost dashboard --wallet <dir> --identity <age file>'; }
+    else { $('pay-note').textContent += ' Cap: ' + app.max_amount_taz + ' TAZ per payment · ' + (app.nym ? 'via Nym' : 'direct (your IP is visible)') + '.'; }
+    if (!app.proof_create_enabled) { $('pc-btn').disabled = true; }
+  }).catch(function () {});
+
+  function post(path, body) {
+    return fetch(path, { method: 'POST', headers: { 'Content-Type': 'application/json', 'X-Ghost': '1' }, body: JSON.stringify(body) })
+      .then(function (r) { return r.json().then(function (j) { if (!r.ok) throw new Error(j.error || ('HTTP ' + r.status)); return j; }); });
+  }
+
+  // Runs a job and renders its live progress; onDone(result, exit_code)
+  function runJob(path, body, out, btn, onDone) {
+    clear(out);
+    btn.disabled = true;
+    var log = el('div', 'log', 'starting…');
+    var live = el('div', 'big-count');
+    out.appendChild(live); out.appendChild(log);
+    var started = Date.now();
+    post(path, body).then(function (j) {
+      var id = j.job;
+      var timer = setInterval(function () {
+        fetch('/api/job/' + id, { cache: 'no-store' }).then(function (r) { return r.json(); }).then(function (job) {
+          log.textContent = (job.progress && job.progress.length ? job.progress.join('\n') : 'working…');
+          log.scrollTop = log.scrollHeight;
+          if (path === '/api/pay') countdown(live, started);
+          if (job.status === 'done') {
+            clearInterval(timer); btn.disabled = false; clear(live);
+            if (!job.progress || !job.progress.length) out.removeChild(log);
+            if (out.contains(live)) out.removeChild(live);
+            onDone(job.result || { ok: false, error: 'no result' }, job.exit_code);
+          }
+        }).catch(function () {});
+      }, 1000);
+    }).catch(function (e) {
+      btn.disabled = false; clear(out);
+      out.appendChild(el('div', 'result badbox', '❌ ' + e.message));
+    });
+  }
+
+  // Live random-delay countdown from Ghost's real broadcast queue
+  function countdown(node, startedMs) {
+    fetch('/api/state', { cache: 'no-store' }).then(function (r) { return r.json(); }).then(function (s) {
+      var skew = Date.now() - s.now_ms;
+      var row = (s.queue || []).filter(function (q) { return q.received_at_ms >= startedMs - skew - 5000; })[0];
+      if (!row) { node.textContent = ''; return; }
+      if (row.status === 'pending') {
+        var left = (row.scheduled_at_ms - s.now_ms) / 1000;
+        node.textContent = left > 0 ? '⏳ broadcast in ' + left.toFixed(1) + ' s (random delay)' : '📡 broadcasting on a fresh connection…';
+      } else {
+        node.textContent = row.status === 'accepted' ? '✅ broadcast on fresh connection #' + row.conn_id + ' via ' + row.transport + ' · ⛏ waiting for a block…' : '❌ ' + row.status;
+      }
+    }).catch(function () {});
+  }
+
+  function resultBox(out, ok, lines, links) {
+    var box = el('div', 'result ' + (ok ? 'okbox' : 'badbox'));
+    lines.forEach(function (l) { box.appendChild(el('div', l[1] || null, l[0])); });
+    (links || []).forEach(function (u) { var a = safeLink(u); if (a) { var d = el('div', 'small'); d.appendChild(a); box.appendChild(d); } });
+    out.appendChild(box);
+  }
+
+  $('pay-form').addEventListener('submit', function (e) {
+    e.preventDefault();
+    var out = $('pay-out');
+    runJob('/api/pay', { to: $('pay-to').value, amount: $('pay-amount').value, memo: $('pay-memo').value }, out, $('pay-btn'), function (r) {
+      if (r.ok) {
+        resultBox(out, true, [['🎉 Mined at height ' + r.height + ' after a ' + (r.delay_s || 0).toFixed(1) + ' s random delay'],
+          ['fresh connection #' + r.broadcast_conn + ' via ' + r.transport], ['txid ' + r.txid, 'mono small']], r.explorer);
+        $('pc-txid').value = r.txid;
+      } else {
+        resultBox(out, false, [['❌ ' + (r.error || 'payment failed')], ['→ ' + (r.hint || 'see the log above'), 'small']]);
+      }
+    });
+  });
+
+  $('pc-form').addEventListener('submit', function (e) {
+    e.preventDefault();
+    var out = $('pc-out');
+    runJob('/api/proof/create', { txid: $('pc-txid').value, msg: $('pc-msg').value }, out, $('pc-btn'), function (r) {
+      if (r.ok) {
+        resultBox(out, true, [['🧾 Proof for ' + (r.value_zat / 1e8).toFixed(8) + ' TAZ (' + r.pool + ' action #' + r.action_index + ', height ' + r.height + ')'],
+          [r.proof, 'mono small']]);
+        $('pv-proof').value = r.proof;
+      } else {
+        resultBox(out, false, [['❌ ' + (r.error || 'could not create a proof')], ['→ ' + (r.hint || ''), 'small']]);
+      }
+    });
+  });
+
+  $('pv-form').addEventListener('submit', function (e) {
+    e.preventDefault();
+    var out = $('pv-out');
+    runJob('/api/proof/verify', { proof: $('pv-proof').value.trim() }, out, $('pv-btn'), function (r) {
+      if (r.valid) {
+        resultBox(out, true, [['✅ VALID: ' + (r.value_zat / 1e8).toFixed(8) + ' TAZ was paid'], ['to ' + r.recipient, 'mono small'],
+          ['memo: ' + r.memo], ['mined at height ' + r.height + ' · note commitment matches the chain'],
+          r.msg ? ['message (not signed): ' + r.msg, 'small'] : ['', 'small'], ['proves the payment happened, not who presents it', 'small']], r.explorer);
+      } else {
+        resultBox(out, false, [['❌ INVALID: ' + (r.reason || r.error || 'proof rejected')]]);
+      }
+    });
+  });
 })();
 </script>
 </body>

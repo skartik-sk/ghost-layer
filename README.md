@@ -78,7 +78,7 @@ All commands accept `--json`. Exit codes: `0` ok, `1` runtime failure (or "not m
 |---|---|
 | `ghost pay` | one-command private payment: gateway → sync → send (random delay, fresh connection) → mined → explorer links |
 | `ghost proof create / verify` | **ZecProof**: prove ONE payment you sent (`zecproof1…`), revealing only that output; anyone can verify it against the chain |
-| `ghost dashboard` | live local page on `127.0.0.1:9070` (loopback only): what the server sees, queue countdowns, grid, attacker view, before/after |
+| `ghost dashboard` | **Ghost Wallet** on `127.0.0.1:9070` (loopback only): Pay · Proof · Live (what the server sees). Pay/Proof need `--wallet --identity --ufvk-file` |
 | `ghost mcp` | MCP server (stdio) for AI agents: read-only tools; `ghost_pay` only with `--allow-pay` + caps |
 | `ghost up` | gateway on `127.0.0.1:9067` (loopback only unless `--allow-remote`); `--broadcast-server` to broadcast via a different server than you sync from |
 | `ghost doctor` | upstream reachable, chain = test, NU branch id, tip, TLS, port, storage; both Nym clients + exit IPs, upstream **only via Nym** (default) |
@@ -88,6 +88,14 @@ All commands accept `--json`. Exit codes: `0` ok, `1` runtime failure (or "not m
 | `ghost explain` | plain-language explanation of the three leaks and what is closed |
 | `ghost attack --events f` | linkage heuristics over a server-side observer log |
 | `ghost report --before d --after d` / `--attack` | `BEFORE_AFTER.md` / `ATTACK_RESULTS.md` |
+
+## Ghost Wallet: an app built on Ghost Layer
+
+`ghost dashboard --wallet ./w --identity ./w.age --ufvk-file sender.ufvk` → <http://127.0.0.1:9070>: **Pay** (live random-delay countdown → mined), **Proof** (create / verify ZecProofs), **Live** (what the server sees). It is **339 lines of Rust + 557 lines of HTML** on top of the Ghost Layer crates (`ghost-core` queue, `ghost-attacker`, `ghost-transport`), and Pay/Proof run the exact `ghost pay` / `ghost proof` code paths. A real payment and proof made through the UI: [`evidence/app/`](evidence/app/README.md).
+
+| Pay (live countdown) | Proof (verified) |
+|---|---|
+| ![Pay tab: broadcast in 21.0 s random delay](evidence/app/wallet-pay-countdown.png) | ![Proof tab: VALID 0.001 TAZ, memo, height, commitment matches](evidence/app/wallet-proof-verify.png) |
 
 ## Verify our payments yourself (viewing key)
 

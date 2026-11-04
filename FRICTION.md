@@ -31,3 +31,7 @@ Tagged: [SDK] [testnet] [Nym] [docs] [ShadeCheck]
   confirmations. Not caused by Ghost Layer.
 - [testnet] Funding: Valar faucet broken, Fauzec IP cooldown; `npx zcash-faucet` (github.com/anukulpandey/zcash-faucet,
   Argon2id proof-of-work, source reviewed before running) and a teammate's transfer worked.
+- [Nym] Exits degraded repeatedly tonight (a pair typically lasted ~20–30 min; symptoms: SOCKS stream timeouts, TLS EOF,
+  HTTP/2 framing errors). Ghost Layer correctly fails closed; `scripts/nym_setup.sh up --reinit` (fresh random exits)
+  fixed it every time. The Nym performance API also timed out once → the script now falls back to the node directory.
+- [network] A ~40 min internet/DNS outage at 18:50 IST killed the Nym clients and our research agents mid-task.

@@ -277,6 +277,11 @@ Options:
       --evidence <EVIDENCE>            Evidence directory with shadecheck/{before,after}/events.jsonl for the before/after panel [default: evidence]
   -q, --quiet                          Only errors
       --threshold <THRESHOLD>          Sync-then-send threshold for the attacker view (seconds) [default: 10]
+      --wallet <WALLET>                Ghost Wallet "Pay" tab: zcash-devtool wallet to pay from (fixed here; the page can't choose it)
+      --identity <IDENTITY>            Its age identity file (path only, passed to zcash-devtool)
+      --ufvk-file <UFVK_FILE>          "Proof" tab: the paying wallet's UFVK file, to create ZecProofs for its payments
+      --devtool <DEVTOOL>              zcash-devtool binary for the Pay tab
+      --max-amount <MAX_AMOUNT>        Max TAZ per payment from the Pay tab [default: 0.01]
       --direct                         Opt OUT of Nym: connect directly (the server then sees your IP on both paths). Default: sync and broadcast go through two Nym SOCKS5 clients with different exits, fail closed
       --nym-sync <NYM_SYNC>            Nym SOCKS5 client used for SYNC [default: 127.0.0.1:1080]
       --nym-broadcast <NYM_BROADCAST>  Nym SOCKS5 client used for BROADCAST (must be a different client/exit than sync) [default: 127.0.0.1:1081]

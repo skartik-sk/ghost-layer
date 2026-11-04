@@ -184,6 +184,8 @@ pub(crate) async fn run(cmd: ProofCmd, json_out: bool) -> Result<u8, Fail> {
         }
         ProofCmd::Verify { proof, server, nym } => {
             let invalid = |reason: String, json_out: bool| -> Result<u8, Fail> {
+                // Never print attacker-controlled text raw (terminal escapes could fake a "VALID").
+                let reason: String = reason.chars().filter(|c| !c.is_control()).take(200).collect();
                 if json_out {
                     println!("{}", json!({"schema_version": 1, "ok": false, "valid": false, "reason": reason}));
                 } else {
@@ -195,7 +197,10 @@ pub(crate) async fn run(cmd: ProofCmd, json_out: bool) -> Result<u8, Fail> {
             let Ok(bytes) = URL_SAFE_NO_PAD.decode(body) else { return invalid("bad base64url encoding".into(), json_out) };
             let Ok(p) = serde_json::from_slice::<Payload>(&bytes) else { return invalid("bad proof payload".into(), json_out) };
             if p.v != 1 || p.network != "test" {
-                return invalid(format!("unsupported proof (v{}, network {})", p.v, p.network), json_out);
+                return invalid("unsupported proof version or network (testnet v1 only)".into(), json_out);
+            }
+            if p.txid.len() != 64 || !p.txid.chars().all(|c| c.is_ascii_hexdigit()) {
+                return invalid("malformed txid in proof".into(), json_out);
             }
             let Ok(ock_bytes) = <[u8; 32]>::try_from(hex::decode(&p.ock_hex).unwrap_or_default()) else {
                 return invalid("bad OCK".into(), json_out);
@@ -209,7 +214,7 @@ pub(crate) async fn run(cmd: ProofCmd, json_out: bool) -> Result<u8, Fail> {
             let bundle = match p.pool.as_str() {
                 "ironwood" => tx.ironwood_bundle(),
                 "orchard" => tx.orchard_bundle(),
-                other => return invalid(format!("unknown pool {other}"), json_out),
+                _ => return invalid("unknown pool (ironwood or orchard only)".into(), json_out),
             };
             let Some(action) = bundle.and_then(|b| b.actions().get(p.action_index)) else {
                 return invalid(format!("tx has no {} action #{}", p.pool, p.action_index), json_out);

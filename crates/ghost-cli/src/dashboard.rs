@@ -20,6 +20,135 @@ use crate::{Fail, NymArgs, data_dir, explorer_links, mask_ip, nym_exit};
 
 const PAGE: &str = include_str!("dashboard.html");
 
+/// A Pay/Proof action: runs `ghost --json <cmd>` (the same code path as the CLI) and streams its
+/// progress lines (stderr) to the page.
+#[derive(Clone, Default, serde::Serialize)]
+struct Job {
+    kind: String,
+    started_ms: i64,
+    status: String,
+    progress: Vec<String>,
+    result: Option<Value>,
+    exit_code: Option<i32>,
+}
+
+type Jobs = Arc<Mutex<(u64, std::collections::HashMap<u64, Job>)>>;
+
+fn start_job(jobs: &Jobs, kind: &str, args: Vec<String>) -> u64 {
+    let id = {
+        let mut j = jobs.lock().unwrap();
+        j.0 += 1;
+        let id = j.0;
+        j.1.insert(id, Job { kind: kind.into(), started_ms: now_ms(), status: "running".into(), ..Default::default() });
+        id
+    };
+    let jobs = jobs.clone();
+    tokio::spawn(async move {
+        use tokio::io::AsyncBufReadExt;
+        let exe = std::env::current_exe().unwrap_or_else(|_| PathBuf::from("ghost"));
+        let child = tokio::process::Command::new(exe).arg("--json").args(&args)
+            .stdin(std::process::Stdio::null()).stdout(std::process::Stdio::piped()).stderr(std::process::Stdio::piped())
+            .kill_on_drop(true).spawn();
+        let mut child = match child {
+            Ok(c) => c,
+            Err(e) => {
+                if let Some(j) = jobs.lock().unwrap().1.get_mut(&id) {
+                    j.status = "done".into();
+                    j.result = Some(json!({"ok": false, "error": e.to_string()}));
+                }
+                return;
+            }
+        };
+        let mut err = tokio::io::BufReader::new(child.stderr.take().expect("piped")).lines();
+        let mut out = child.stdout.take().expect("piped");
+        let reader = tokio::spawn(async move {
+            let mut s = String::new();
+            let _ = out.read_to_string(&mut s).await;
+            s
+        });
+        while let Ok(Some(line)) = err.next_line().await {
+            let clean: String = line.chars().filter(|c| !c.is_control()).take(300).collect();
+            if let Some(j) = jobs.lock().unwrap().1.get_mut(&id) {
+                j.progress.push(clean);
+            }
+        }
+        let code = child.wait().await.ok().and_then(|s| s.code());
+        let stdout = reader.await.unwrap_or_default();
+        let result = stdout.lines().last().and_then(|l| serde_json::from_str::<Value>(l).ok());
+        if let Some(j) = jobs.lock().unwrap().1.get_mut(&id) {
+            j.status = "done".into();
+            j.exit_code = code;
+            j.result = result;
+        }
+    });
+    id
+}
+
+/// Validates a Pay/Proof request from the page and turns it into `ghost` arguments.
+fn job_args(a: &DashArgs, path: &str, body: &Value) -> Result<(String, Vec<String>), String> {
+    let field = |k: &str| body.get(k).and_then(|v| v.as_str()).map(str::trim).unwrap_or("").to_string();
+    let mut args: Vec<String> = Vec::new();
+    match path {
+        "/api/pay" => {
+            let (Some(w), Some(i)) = (&a.wallet, &a.identity) else {
+                return Err("Pay is disabled: start `ghost dashboard --wallet <dir> --identity <age file>`".into());
+            };
+            let to = field("to");
+            if !(to.starts_with("utest1") || to.starts_with("ztestsapling1") || to.starts_with("tm")) || to.len() > 600 {
+                return Err("recipient must be a testnet address (utest1…, ztestsapling1…, tm…)".into());
+            }
+            let amount = field("amount");
+            let zat = crate::pay::taz_to_zat(&amount).map_err(|f| f.msg)?;
+            let cap = crate::pay::taz_to_zat(&a.max_amount).map_err(|f| f.msg)?;
+            if zat > cap {
+                return Err(format!("amount above this dashboard's cap of {} TAZ", a.max_amount));
+            }
+            let memo = field("memo");
+            if memo.len() > 512 || memo.chars().any(char::is_control) {
+                return Err("memo: up to 512 bytes of plain text".into());
+            }
+            args.extend(["pay".into(), "--wallet".into(), w.display().to_string(), "--identity".into(), i.display().to_string(),
+                "--to".into(), to, "--amount".into(), amount]);
+            if !memo.is_empty() {
+                args.extend(["--memo".into(), memo]);
+            }
+            if let Some(d) = &a.devtool {
+                args.extend(["--devtool".into(), d.display().to_string()]);
+            }
+        }
+        "/api/proof/create" => {
+            let Some(u) = &a.ufvk_file else {
+                return Err("Proof creation is disabled: start `ghost dashboard --ufvk-file <sender UFVK file>`".into());
+            };
+            let txid = field("txid").to_ascii_lowercase();
+            if txid.len() != 64 || !txid.chars().all(|c| c.is_ascii_hexdigit()) {
+                return Err("txid must be 64 hex characters".into());
+            }
+            let msg = field("msg");
+            if msg.len() > 256 || msg.chars().any(char::is_control) {
+                return Err("message: up to 256 bytes of plain text".into());
+            }
+            args.extend(["proof".into(), "create".into(), "--ufvk-file".into(), u.display().to_string(), "--txid".into(), txid, "--msg".into(), msg]);
+            if let Some(i) = body.get("action").and_then(|v| v.as_u64()) {
+                args.extend(["--action".into(), i.to_string()]);
+            }
+        }
+        "/api/proof/verify" => {
+            let p = field("proof");
+            if !p.starts_with("zecproof1") || p.len() > 4000 || !p[9..].chars().all(|c| c.is_ascii_alphanumeric() || c == '-' || c == '_') {
+                return Err("paste a zecproof1… string".into());
+            }
+            args.extend(["proof".into(), "verify".into(), p]);
+        }
+        _ => return Err("not found".into()),
+    }
+    if !a.nym.on() {
+        args.push("--direct".into());
+    }
+    let kind = path.trim_start_matches("/api/").replace('/', "-");
+    Ok((kind, args))
+}
+
 #[derive(clap::Args)]
 pub(crate) struct DashArgs {
     /// Listen address (loopback only)
@@ -34,6 +163,21 @@ pub(crate) struct DashArgs {
     /// Sync-then-send threshold for the attacker view (seconds)
     #[arg(long, default_value_t = 10.0)]
     threshold: f64,
+    /// Ghost Wallet "Pay" tab: zcash-devtool wallet to pay from (fixed here; the page can't choose it)
+    #[arg(long)]
+    wallet: Option<PathBuf>,
+    /// Its age identity file (path only, passed to zcash-devtool)
+    #[arg(long)]
+    identity: Option<PathBuf>,
+    /// "Proof" tab: the paying wallet's UFVK file, to create ZecProofs for its payments
+    #[arg(long)]
+    ufvk_file: Option<PathBuf>,
+    /// zcash-devtool binary for the Pay tab
+    #[arg(long)]
+    devtool: Option<PathBuf>,
+    /// Max TAZ per payment from the Pay tab
+    #[arg(long, default_value = "0.01")]
+    max_amount: String,
     #[command(flatten)]
     nym: NymArgs,
 }
@@ -108,6 +252,12 @@ fn state(a: &DashArgs, events: &PathBuf, server_sees: &Value) -> Value {
     json!({
         "schema_version": 1,
         "now_ms": now_ms(),
+        "app": {
+            "pay_enabled": a.wallet.is_some() && a.identity.is_some(),
+            "proof_create_enabled": a.ufvk_file.is_some(),
+            "max_amount_taz": a.max_amount,
+            "nym": a.nym.on(),
+        },
         "server_sees": if server_sees.is_null() { Value::Null } else { server_sees.clone() },
         "queue": queue,
         "grid": grid,
@@ -116,10 +266,39 @@ fn state(a: &DashArgs, events: &PathBuf, server_sees: &Value) -> Value {
     })
 }
 
-async fn respond(mut sock: tokio::net::TcpStream, a: Arc<DashArgs>, events: Arc<PathBuf>, seen: Arc<Mutex<Value>>) {
-    let mut buf = [0u8; 4096];
-    let Ok(Ok(n)) = tokio::time::timeout(Duration::from_secs(5), sock.read(&mut buf)).await else { return };
-    let req = String::from_utf8_lossy(&buf[..n]);
+/// Reads one HTTP request (headers + Content-Length body, max 16 KiB).
+async fn read_request(sock: &mut tokio::net::TcpStream) -> Option<(String, Vec<u8>)> {
+    let mut buf = Vec::new();
+    let mut chunk = [0u8; 4096];
+    loop {
+        let n = tokio::time::timeout(Duration::from_secs(5), sock.read(&mut chunk)).await.ok()?.ok()?;
+        if n == 0 {
+            return None;
+        }
+        buf.extend_from_slice(&chunk[..n]);
+        if buf.len() > 16 * 1024 {
+            return None;
+        }
+        if let Some(pos) = buf.windows(4).position(|w| w == b"\r\n\r\n") {
+            let head = String::from_utf8_lossy(&buf[..pos]).to_string();
+            let len = head.lines().find_map(|l| l.split_once(':').filter(|(k, _)| k.eq_ignore_ascii_case("content-length")).and_then(|(_, v)| v.trim().parse::<usize>().ok())).unwrap_or(0);
+            if len > 16 * 1024 {
+                return None;
+            }
+            while buf.len() < pos + 4 + len {
+                let n = tokio::time::timeout(Duration::from_secs(5), sock.read(&mut chunk)).await.ok()?.ok()?;
+                if n == 0 {
+                    return None;
+                }
+                buf.extend_from_slice(&chunk[..n]);
+            }
+            return Some((head, buf[pos + 4..pos + 4 + len].to_vec()));
+        }
+    }
+}
+
+async fn respond(mut sock: tokio::net::TcpStream, a: Arc<DashArgs>, events: Arc<PathBuf>, seen: Arc<Mutex<Value>>, jobs: Jobs) {
+    let Some((req, body_in)) = read_request(&mut sock).await else { return };
     let line = req.lines().next().unwrap_or_default();
     // DNS-rebinding guard: only answer requests addressed to the loopback name we listen on.
     let port = a.listen.port();
@@ -134,8 +313,34 @@ async fn respond(mut sock: tokio::net::TcpStream, a: Arc<DashArgs>, events: Arc<
             let s = seen.lock().unwrap().clone();
             ("200 OK", "application/json", state(&a, &events, &s).to_string())
         }
-        ["GET", _] => ("404 Not Found", "text/plain", "not found".into()),
-        _ => ("405 Method Not Allowed", "text/plain", "GET only".into()),
+        ["GET", p] if p.starts_with("/api/job/") => {
+            let job = p["/api/job/".len()..].parse::<u64>().ok().and_then(|id| jobs.lock().unwrap().1.get(&id).cloned());
+            match job {
+                Some(j) => ("200 OK", "application/json", serde_json::to_string(&j).unwrap_or_default()),
+                None => ("404 Not Found", "application/json", json!({"error": "no such job"}).to_string()),
+            }
+        }
+        ["POST", p @ ("/api/pay" | "/api/proof/create" | "/api/proof/verify")] => {
+            // CSRF guard: a custom header + JSON content type can't be sent cross-site without a CORS
+            // preflight, which this server never approves.
+            let header = |name: &str| req.lines().skip(1).find_map(|l| l.split_once(':').filter(|(k, _)| k.eq_ignore_ascii_case(name)).map(|(_, v)| v.trim().to_string()));
+            let body: Value = serde_json::from_slice(&body_in).unwrap_or(Value::Null);
+            if header("x-ghost").as_deref() != Some("1") || !header("content-type").is_some_and(|c| c.starts_with("application/json")) {
+                ("403 Forbidden", "application/json", json!({"error": "missing X-Ghost header"}).to_string())
+            } else if *p == "/api/pay" && jobs.lock().unwrap().1.values().any(|j| j.kind == "pay" && j.status == "running") {
+                ("409 Conflict", "application/json", json!({"error": "a payment is already in progress"}).to_string())
+            } else {
+                match job_args(&a, p, &body) {
+                    Ok((kind, args)) => {
+                        let id = start_job(&jobs, &kind, args);
+                        ("200 OK", "application/json", json!({"job": id}).to_string())
+                    }
+                    Err(e) => ("400 Bad Request", "application/json", json!({"error": e}).to_string()),
+                }
+            }
+        }
+        ["GET", _] | ["POST", _] => ("404 Not Found", "text/plain", "not found".into()),
+        _ => ("405 Method Not Allowed", "text/plain", "GET/POST only".into()),
     } };
     let head = format!(
         "HTTP/1.1 {status}\r\nContent-Type: {ctype}\r\nContent-Length: {}\r\nCache-Control: no-store\r\n\
@@ -155,11 +360,16 @@ pub(crate) async fn dashboard(a: DashArgs, json_out: bool) -> Result<u8, Fail> {
         .map_err(|e| Fail::runtime(format!("cannot listen on {}: {e}", a.listen), "is another dashboard running? try --listen 127.0.0.1:9071"))?;
     let events = Arc::new(a.events.clone().unwrap_or_else(|| data_dir().join("upstream-events.jsonl")));
     let seen = Arc::new(Mutex::new(Value::Null));
+    let jobs: Jobs = Arc::new(Mutex::new((0, Default::default())));
     tokio::spawn(measure_loop(a.nym.clone(), seen.clone()));
     if json_out {
         println!("{}", json!({"schema_version": 1, "ok": true, "url": format!("http://{}/", a.listen), "events": events.as_ref()}));
     } else {
-        println!("👻 Ghost Layer dashboard: http://{}/  (loopback only; Ctrl-C to stop)", a.listen);
+        println!("👻 Ghost Wallet: http://{}/  (Pay · Proof · Live; loopback only; Ctrl-C to stop)", a.listen);
+        println!("   pay: {}  ·  proof create: {}  ·  cap {} TAZ  ·  {}",
+            if a.wallet.is_some() && a.identity.is_some() { "enabled" } else { "disabled (--wallet/--identity)" },
+            if a.ufvk_file.is_some() { "enabled" } else { "disabled (--ufvk-file)" }, a.max_amount,
+            if a.nym.on() { "Nym" } else { "--direct" });
         println!("   reading: queue ~/.ghost-layer/ghost.sqlite · upstream events {} · evidence {}", events.display(), a.evidence.display());
     }
     let a = Arc::new(a);
@@ -168,6 +378,6 @@ pub(crate) async fn dashboard(a: DashArgs, json_out: bool) -> Result<u8, Fail> {
         if !peer.ip().is_loopback() {
             continue;
         }
-        tokio::spawn(respond(sock, a.clone(), events.clone(), seen.clone()));
+        tokio::spawn(respond(sock, a.clone(), events.clone(), seen.clone(), jobs.clone()));
     }
 }

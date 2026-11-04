@@ -1,0 +1,3 @@
+👻 Ghost Wallet: http://127.0.0.1:9070/  (Pay · Proof · Live; loopback only; Ctrl-C to stop)
+   pay: enabled  ·  proof create: enabled  ·  cap 0.01 TAZ  ·  Nym
+   reading: queue ~/.ghost-layer/ghost.sqlite · upstream events /Users/singupallikartik/.ghost-layer/upstream-events.jsonl · evidence evidence
