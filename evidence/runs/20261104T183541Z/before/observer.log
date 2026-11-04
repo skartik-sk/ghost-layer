@@ -1,0 +1,1 @@
+Observer listening at 127.0.0.1:9068; GetLatestBlock, GetBlockRange, GetTransaction, SendTransaction, and GetMempoolStream supported
