@@ -1,0 +1,10 @@
+2026-11-04T12:57:08.977966Z  INFO upstream: startup probe ok (connection closed) conn=1 transport="nym-sync" server=https://testnet.zec.rocks:443 tip=4582112
+2026-11-04T12:57:10.160356Z  INFO upstream: new sync connection for a new wallet session conn=2 path="sync" transport="nym-sync" wallet=127.0.0.1:51447
+2026-11-04T12:57:10.160412Z  INFO upstream: start_index=0 max=0 conn=2 path="sync" method="GetSubtreeRoots"
+2026-11-04T12:57:11.298740Z  INFO upstream: start_index=0 max=0 conn=2 path="sync" method="GetSubtreeRoots"
+2026-11-04T12:57:12.159947Z  INFO upstream: start_index=0 max=0 conn=2 path="sync" method="GetSubtreeRoots"
+2026-11-04T12:57:12.886196Z  INFO upstream:  conn=2 path="sync" method="GetLatestBlock"
+2026-11-04T12:57:13.488734Z  INFO upstream:  conn=2 path="sync" method="GetAddressUtxosStream"
+2026-11-04T12:57:14.603262Z  INFO grid: planned grid-aligned fetch wallet_range=4582110..=4582112 emitted=4581504..=4582112 cells=1 spacing=1152
+2026-11-04T12:57:14.603466Z  INFO upstream: range=4581504..=4582112 (grid cell) conn=2 path="sync" method="GetBlockRange" aligned=true
+2026-11-04T12:57:18.501244Z  INFO upstream: height=4582109 conn=2 path="sync" method="GetTreeState"

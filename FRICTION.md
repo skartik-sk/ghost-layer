@@ -25,3 +25,9 @@ Tagged: [SDK] [testnet] [Nym] [docs] [ShadeCheck]
   The 1.1.86 `credential_requests_database` config quirk did not occur on 1.1.88. No credentials were needed.
 - [testnet] `nym-swizzle-zcash`'s broadcast scheduler is wallet-side (builds the tx when the delay fires);
   a gateway receives built txs, so we wrote our own uniform-delay scheduler.
+- [SDK] zcash-devtool `balance` reports the wallet's own Ironwood change as spendable after 3 confirmations,
+  but `propose`/`send` only selected Ironwood notes with ≥ 10 confirmations ("Insufficient balance (have 0)").
+  Looked like a gateway bug at first; reproduced with a direct sync too, and resolved by waiting for 10
+  confirmations. Not caused by Ghost Layer.
+- [testnet] Funding: Valar faucet broken, Fauzec IP cooldown; `npx zcash-faucet` (github.com/anukulpandey/zcash-faucet,
+  Argon2id proof-of-work, source reviewed before running) and a teammate's transfer worked.

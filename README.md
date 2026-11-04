@@ -33,7 +33,7 @@ Ghost Layer is a small local gateway between any lightwalletd-compatible wallet 
 | Grid alignment on **public testnet** | 5/5 upstream ranges aligned; two wallets synced to 100 % | [`evidence/grid_alignment.md`](evidence/grid_alignment.md) |
 | Nym on **public testnet** | server sees sync exit `195.238.126.176` ≠ broadcast exit `157.254.54.45` ≠ your IP; wallet synced through the mixnet; killing a Nym client → `UNAVAILABLE`, never a direct fallback | [`evidence/logs/step5_ghost_ip.txt`](evidence/logs/step5_ghost_ip.txt), [`step5_fail_closed.txt`](evidence/logs/step5_fail_closed.txt) |
 | Broadcast pipeline over Nym on **public testnet** | fresh connection #3 via the Nym broadcast exit after a 14.7 s random delay. (This was a re-submitted mined tx, rejected as a duplicate. Not a payment.) | [`evidence/nym_broadcast_pipeline.md`](evidence/nym_broadcast_pipeline.md) |
-| Real testnet payments (before / after) | txids + explorer links + `ghost verify` | [`evidence/testnet_tx.md`](evidence/testnet_tx.md) |
+| **Real testnet payments** | before (direct): [`4d8f96ec…126b4970`](https://testnet.zcashexplorer.app/transactions/4d8f96ec56cd36871d6611e8fbe72cfc37cd7e9730d32cafeb2992fa126b4970), mined at 4582106 · **after (Ghost Layer + Nym)**: [`09f0f0b0…2bd3ce69`](https://testnet.zcashexplorer.app/transactions/09f0f0b01942a658197f65563a977c66fc19f8823268b0e547470e022bd3ce69), mined at 4582118: sync via one Nym exit, broadcast on a fresh connection via another after a 16.3 s random delay | [`evidence/testnet_tx.md`](evidence/testnet_tx.md) |
 
 ## Quickstart (≈15 min)
 
