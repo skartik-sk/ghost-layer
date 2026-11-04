@@ -39,7 +39,6 @@ struct Cli {
 enum Cmd {
     /// Start the gateway; point your wallet at 127.0.0.1:9067
     Up(UpArgs),
-    /// Check upstream, chain, TLS, port and storage
     /// Plain-language explanation of the three leaks and what Ghost Layer closes
     Explain,
     /// Linkage heuristics over an observer log (ShadeCheck events.jsonl) — the attacker's view
@@ -90,6 +89,7 @@ enum Cmd {
         #[command(flatten)]
         nym: NymArgs,
     },
+    /// Check upstream, chain, NU branch, TLS, port, storage (and Nym clients with --nym)
     Doctor {
         #[arg(long, default_value = DEFAULT_SERVER)]
         server: String,
