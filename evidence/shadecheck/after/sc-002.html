@@ -1,0 +1,420 @@
+<!doctype html><html lang="en"><head><meta charset="utf-8"><meta name="viewport" content="width=device-width,initial-scale=1"><title>ShadeCheck evidence report</title>
+<style>body{font:16px/1.6 system-ui,sans-serif;max-width:1050px;margin:40px auto;padding:0 24px;color:#17202a;background:#fafafa}h1,h2,h3{line-height:1.3}article{background:white;border:1px solid #ddd;border-radius:8px;padding:20px;margin:20px 0}table{border-collapse:collapse;width:100%}td,th{text-align:left;padding:10px;border-bottom:1px solid #ddd}pre{white-space:pre-wrap;overflow-wrap:anywhere;font-size:12px;background:#eee;padding:16px}summary{cursor:pointer}small{overflow-wrap:anywhere}</style></head><body><h1>ShadeCheck: FAIL</h1><p>Defined observable behavior tests; passing does not establish anonymity.</p><p>Policy: strict · 5 findings</p><small>Evidence root: df9c573b987fe6f08dfbe4101634d67201786f5460a8a03edd7fa41c6d39d195</small><h2>Tested rules</h2><table><thead><tr><th>Rule</th><th>Coverage</th><th>Covered</th></tr></thead><tbody><tr><td>SC-002</td><td>broadcast-observed</td><td>True</td></tr></tbody></table><h2>Findings</h2><article><h3>SC-002 · MEDIUM · Broadcast payload linked to a transport session</h3><p><strong>Observed behavior:</strong> Non-empty submission bytes observed on an identifiable transport connection.</p><p><strong>Possible consequence:</strong> The RPC observer can associate these submitted bytes with this connection; this does not identify a person.</p><p><strong>Affected component:</strong> lightwalletd broadcast transport</p><p><strong>Investigation:</strong> Review the server trust model and whether an independent broadcast path reduces the observer&#x27;s linkability.</p><details><summary>Inspect current evidence (2 events)</summary><pre>[
+  {
+    &quot;elapsed_ns&quot;: 68720896667,
+    &quot;event_hash&quot;: &quot;b880914f374f262082aea24369f96fcd1367ab5a192d4c8475a1e65baa25ecd1&quot;,
+    &quot;metadata&quot;: {
+      &quot;payload_sha256&quot;: &quot;1f195d2ebfa79ab9158862a6c2535c652424f6013cb364f068487c883ca58503&quot;,
+      &quot;payload_size&quot;: 9166
+    },
+    &quot;method&quot;: &quot;SendTransaction&quot;,
+    &quot;mode&quot;: &quot;upstream&quot;,
+    &quot;phase&quot;: &quot;request&quot;,
+    &quot;previous_hash&quot;: &quot;a571a43bd82ecc91c87b6a2a7ccc5613d238dd526f159d03882372e1c7f8c1dd&quot;,
+    &quot;schema_version&quot;: 1,
+    &quot;sequence&quot;: 9,
+    &quot;session&quot;: &quot;1cde1face05849907b3a365fdb48ed1afc820285adf555a72af1b23185114961&quot;,
+    &quot;timestamp_ns&quot;: 1793794375080165000
+  },
+  {
+    &quot;elapsed_ns&quot;: 68930559667,
+    &quot;event_hash&quot;: &quot;b9d12f80ba35a00c000f83dc96afeaa7ecc223edbff205afb8feea959312a5b8&quot;,
+    &quot;metadata&quot;: {
+      &quot;error_code&quot;: 0,
+      &quot;request_sequence&quot;: 9
+    },
+    &quot;method&quot;: &quot;SendTransaction&quot;,
+    &quot;mode&quot;: &quot;upstream&quot;,
+    &quot;phase&quot;: &quot;response&quot;,
+    &quot;previous_hash&quot;: &quot;b880914f374f262082aea24369f96fcd1367ab5a192d4c8475a1e65baa25ecd1&quot;,
+    &quot;schema_version&quot;: 1,
+    &quot;sequence&quot;: 10,
+    &quot;session&quot;: &quot;1cde1face05849907b3a365fdb48ed1afc820285adf555a72af1b23185114961&quot;,
+    &quot;timestamp_ns&quot;: 1793794375289820000
+  }
+]</pre></details></article><article><h3>SC-002 · MEDIUM · Broadcast payload linked to a transport session</h3><p><strong>Observed behavior:</strong> Non-empty submission bytes observed on an identifiable transport connection.</p><p><strong>Possible consequence:</strong> The RPC observer can associate these submitted bytes with this connection; this does not identify a person.</p><p><strong>Affected component:</strong> lightwalletd broadcast transport</p><p><strong>Investigation:</strong> Review the server trust model and whether an independent broadcast path reduces the observer&#x27;s linkability.</p><details><summary>Inspect current evidence (2 events)</summary><pre>[
+  {
+    &quot;elapsed_ns&quot;: 105859811708,
+    &quot;event_hash&quot;: &quot;0473b66500d75e1b07301ff3c96dc6caa24ad9772e3050a72783577c885e1837&quot;,
+    &quot;metadata&quot;: {
+      &quot;payload_sha256&quot;: &quot;44b40d033326372456b14e4357eb026675100b13562b1c9fc56ee4933b68c744&quot;,
+      &quot;payload_size&quot;: 9166
+    },
+    &quot;method&quot;: &quot;SendTransaction&quot;,
+    &quot;mode&quot;: &quot;upstream&quot;,
+    &quot;phase&quot;: &quot;request&quot;,
+    &quot;previous_hash&quot;: &quot;ddb0d69ad864e2e784d37f6e6a6692f9800ca2192fca59049bb9ca5b70847a67&quot;,
+    &quot;schema_version&quot;: 1,
+    &quot;sequence&quot;: 411,
+    &quot;session&quot;: &quot;6ef3635518ab7b948aa92c09783dda2c8f652454fe5e6c673d7ec8308830a0c2&quot;,
+    &quot;timestamp_ns&quot;: 1793794412217769000
+  },
+  {
+    &quot;elapsed_ns&quot;: 106072203000,
+    &quot;event_hash&quot;: &quot;936eeaa0016ba748615999813c779030e407ada699a08f0515022a2335c9c6c6&quot;,
+    &quot;metadata&quot;: {
+      &quot;error_code&quot;: 0,
+      &quot;request_sequence&quot;: 411
+    },
+    &quot;method&quot;: &quot;SendTransaction&quot;,
+    &quot;mode&quot;: &quot;upstream&quot;,
+    &quot;phase&quot;: &quot;response&quot;,
+    &quot;previous_hash&quot;: &quot;0473b66500d75e1b07301ff3c96dc6caa24ad9772e3050a72783577c885e1837&quot;,
+    &quot;schema_version&quot;: 1,
+    &quot;sequence&quot;: 412,
+    &quot;session&quot;: &quot;6ef3635518ab7b948aa92c09783dda2c8f652454fe5e6c673d7ec8308830a0c2&quot;,
+    &quot;timestamp_ns&quot;: 1793794412430153000
+  }
+]</pre></details></article><article><h3>SC-002 · MEDIUM · Broadcast payload linked to a transport session</h3><p><strong>Observed behavior:</strong> Non-empty submission bytes observed on an identifiable transport connection.</p><p><strong>Possible consequence:</strong> The RPC observer can associate these submitted bytes with this connection; this does not identify a person.</p><p><strong>Affected component:</strong> lightwalletd broadcast transport</p><p><strong>Investigation:</strong> Review the server trust model and whether an independent broadcast path reduces the observer&#x27;s linkability.</p><details><summary>Inspect current evidence (2 events)</summary><pre>[
+  {
+    &quot;elapsed_ns&quot;: 130147012833,
+    &quot;event_hash&quot;: &quot;33fc9f23b9dc15f606663776a9daedecfaad0fc14148c42d449275b3c4aa61e9&quot;,
+    &quot;metadata&quot;: {
+      &quot;payload_sha256&quot;: &quot;c6ef1ae3e7367d789094a3e7ec8409ba998abc5709dc27a5a513300d86cdbfec&quot;,
+      &quot;payload_size&quot;: 9166
+    },
+    &quot;method&quot;: &quot;SendTransaction&quot;,
+    &quot;mode&quot;: &quot;upstream&quot;,
+    &quot;phase&quot;: &quot;request&quot;,
+    &quot;previous_hash&quot;: &quot;f9c4c12c0d57515a4c66994854e5d4dcd986aabffe33c880be9b3a84f64f0456&quot;,
+    &quot;schema_version&quot;: 1,
+    &quot;sequence&quot;: 817,
+    &quot;session&quot;: &quot;f6e7a74ec5c8013600ab9a1f9493b44e0af2dfd89a2a3880569b15037126df94&quot;,
+    &quot;timestamp_ns&quot;: 1793794436504110000
+  },
+  {
+    &quot;elapsed_ns&quot;: 130335225375,
+    &quot;event_hash&quot;: &quot;ce2d3ffbde2df929062b52bd8ad8b0c1ecffb38db20754783e28c0d3f9b256a8&quot;,
+    &quot;metadata&quot;: {
+      &quot;error_code&quot;: 0,
+      &quot;request_sequence&quot;: 817
+    },
+    &quot;method&quot;: &quot;SendTransaction&quot;,
+    &quot;mode&quot;: &quot;upstream&quot;,
+    &quot;phase&quot;: &quot;response&quot;,
+    &quot;previous_hash&quot;: &quot;33fc9f23b9dc15f606663776a9daedecfaad0fc14148c42d449275b3c4aa61e9&quot;,
+    &quot;schema_version&quot;: 1,
+    &quot;sequence&quot;: 818,
+    &quot;session&quot;: &quot;f6e7a74ec5c8013600ab9a1f9493b44e0af2dfd89a2a3880569b15037126df94&quot;,
+    &quot;timestamp_ns&quot;: 1793794436692318000
+  }
+]</pre></details></article><article><h3>SC-002 · MEDIUM · Broadcast payload linked to a transport session</h3><p><strong>Observed behavior:</strong> Non-empty submission bytes observed on an identifiable transport connection.</p><p><strong>Possible consequence:</strong> The RPC observer can associate these submitted bytes with this connection; this does not identify a person.</p><p><strong>Affected component:</strong> lightwalletd broadcast transport</p><p><strong>Investigation:</strong> Review the server trust model and whether an independent broadcast path reduces the observer&#x27;s linkability.</p><details><summary>Inspect current evidence (2 events)</summary><pre>[
+  {
+    &quot;elapsed_ns&quot;: 164828791542,
+    &quot;event_hash&quot;: &quot;bf3260818b9a6570df3dd187b6a9372959e8fb3f682b004b14cf8a5ca2bcba91&quot;,
+    &quot;metadata&quot;: {
+      &quot;payload_sha256&quot;: &quot;9f084f063966b43553de4854efcda3ef50ad0a0c1c1df77a740222569a6926da&quot;,
+      &quot;payload_size&quot;: 9166
+    },
+    &quot;method&quot;: &quot;SendTransaction&quot;,
+    &quot;mode&quot;: &quot;upstream&quot;,
+    &quot;phase&quot;: &quot;request&quot;,
+    &quot;previous_hash&quot;: &quot;fa61ad9d9a7833a6fec4eff193f5dd6bf4eeed0d953a448b8f4304035a83a74a&quot;,
+    &quot;schema_version&quot;: 1,
+    &quot;sequence&quot;: 1227,
+    &quot;session&quot;: &quot;8a6ca51649e2bd66fa3a84d2d7590d543910c7fe5b0f1f5c31c37c323db3e969&quot;,
+    &quot;timestamp_ns&quot;: 1793794471184666000
+  },
+  {
+    &quot;elapsed_ns&quot;: 165035043917,
+    &quot;event_hash&quot;: &quot;3aeda83f7ebf74e6b6945e99daac090296e7c339f18dd0e6008a2aea1a998c23&quot;,
+    &quot;metadata&quot;: {
+      &quot;error_code&quot;: 0,
+      &quot;request_sequence&quot;: 1227
+    },
+    &quot;method&quot;: &quot;SendTransaction&quot;,
+    &quot;mode&quot;: &quot;upstream&quot;,
+    &quot;phase&quot;: &quot;response&quot;,
+    &quot;previous_hash&quot;: &quot;bf3260818b9a6570df3dd187b6a9372959e8fb3f682b004b14cf8a5ca2bcba91&quot;,
+    &quot;schema_version&quot;: 1,
+    &quot;sequence&quot;: 1228,
+    &quot;session&quot;: &quot;8a6ca51649e2bd66fa3a84d2d7590d543910c7fe5b0f1f5c31c37c323db3e969&quot;,
+    &quot;timestamp_ns&quot;: 1793794471390911000
+  }
+]</pre></details></article><article><h3>SC-002 · MEDIUM · Broadcast payload linked to a transport session</h3><p><strong>Observed behavior:</strong> Non-empty submission bytes observed on an identifiable transport connection.</p><p><strong>Possible consequence:</strong> The RPC observer can associate these submitted bytes with this connection; this does not identify a person.</p><p><strong>Affected component:</strong> lightwalletd broadcast transport</p><p><strong>Investigation:</strong> Review the server trust model and whether an independent broadcast path reduces the observer&#x27;s linkability.</p><details><summary>Inspect current evidence (2 events)</summary><pre>[
+  {
+    &quot;elapsed_ns&quot;: 192274545417,
+    &quot;event_hash&quot;: &quot;436b9a90fc93773f1ef912f412344e175046beda12f09650538f967f8dc20ce3&quot;,
+    &quot;metadata&quot;: {
+      &quot;payload_sha256&quot;: &quot;3f408b2b01e720b5db9c76c591f168a944d8a05116f5e560d31e52cd007c93e3&quot;,
+      &quot;payload_size&quot;: 9166
+    },
+    &quot;method&quot;: &quot;SendTransaction&quot;,
+    &quot;mode&quot;: &quot;upstream&quot;,
+    &quot;phase&quot;: &quot;request&quot;,
+    &quot;previous_hash&quot;: &quot;03e0b021d58e69d250aa4c7f133a5c64003f4aee8e26f53017c8a030e5a6d2ba&quot;,
+    &quot;schema_version&quot;: 1,
+    &quot;sequence&quot;: 1647,
+    &quot;session&quot;: &quot;5fc5c92390ae49a072ce9bc1af0770532addf381fb707214ec6c8ad1b5575450&quot;,
+    &quot;timestamp_ns&quot;: 1793794498629451000
+  },
+  {
+    &quot;elapsed_ns&quot;: 192478133000,
+    &quot;event_hash&quot;: &quot;5e83eed17f2c13ce860cb4744c26ba203716e75a3e6caf3ec0fbb46c9866eb3b&quot;,
+    &quot;metadata&quot;: {
+      &quot;error_code&quot;: 0,
+      &quot;request_sequence&quot;: 1647
+    },
+    &quot;method&quot;: &quot;SendTransaction&quot;,
+    &quot;mode&quot;: &quot;upstream&quot;,
+    &quot;phase&quot;: &quot;response&quot;,
+    &quot;previous_hash&quot;: &quot;436b9a90fc93773f1ef912f412344e175046beda12f09650538f967f8dc20ce3&quot;,
+    &quot;schema_version&quot;: 1,
+    &quot;sequence&quot;: 1648,
+    &quot;session&quot;: &quot;5fc5c92390ae49a072ce9bc1af0770532addf381fb707214ec6c8ad1b5575450&quot;,
+    &quot;timestamp_ns&quot;: 1793794498833032000
+  }
+]</pre></details></article><h2>Limitations</h2><ul><li>Defined tests cover SC-001 through SC-004; SC-005 requires a compatible saved baseline.</li><li>A transport peer identifies a connection, not a person or wallet.</li><li>Local fixture replay is not consensus validation or network acceptance.</li><li>Transaction SHA-256 fingerprints are not Zcash transaction IDs.</li><li>No violation observed does not establish anonymity.</li></ul><details><summary>Complete JSON result</summary><pre>{
+  &quot;correlation_window_seconds&quot;: 30,
+  &quot;evidence_modes&quot;: [
+    &quot;upstream&quot;
+  ],
+  &quot;evidence_root&quot;: &quot;df9c573b987fe6f08dfbe4101634d67201786f5460a8a03edd7fa41c6d39d195&quot;,
+  &quot;findings&quot;: [
+    {
+      &quot;affected_component&quot;: &quot;lightwalletd broadcast transport&quot;,
+      &quot;evidence&quot;: [
+        {
+          &quot;elapsed_ns&quot;: 68720896667,
+          &quot;event_hash&quot;: &quot;b880914f374f262082aea24369f96fcd1367ab5a192d4c8475a1e65baa25ecd1&quot;,
+          &quot;metadata&quot;: {
+            &quot;payload_sha256&quot;: &quot;1f195d2ebfa79ab9158862a6c2535c652424f6013cb364f068487c883ca58503&quot;,
+            &quot;payload_size&quot;: 9166
+          },
+          &quot;method&quot;: &quot;SendTransaction&quot;,
+          &quot;mode&quot;: &quot;upstream&quot;,
+          &quot;phase&quot;: &quot;request&quot;,
+          &quot;previous_hash&quot;: &quot;a571a43bd82ecc91c87b6a2a7ccc5613d238dd526f159d03882372e1c7f8c1dd&quot;,
+          &quot;schema_version&quot;: 1,
+          &quot;sequence&quot;: 9,
+          &quot;session&quot;: &quot;1cde1face05849907b3a365fdb48ed1afc820285adf555a72af1b23185114961&quot;,
+          &quot;timestamp_ns&quot;: 1793794375080165000
+        },
+        {
+          &quot;elapsed_ns&quot;: 68930559667,
+          &quot;event_hash&quot;: &quot;b9d12f80ba35a00c000f83dc96afeaa7ecc223edbff205afb8feea959312a5b8&quot;,
+          &quot;metadata&quot;: {
+            &quot;error_code&quot;: 0,
+            &quot;request_sequence&quot;: 9
+          },
+          &quot;method&quot;: &quot;SendTransaction&quot;,
+          &quot;mode&quot;: &quot;upstream&quot;,
+          &quot;phase&quot;: &quot;response&quot;,
+          &quot;previous_hash&quot;: &quot;b880914f374f262082aea24369f96fcd1367ab5a192d4c8475a1e65baa25ecd1&quot;,
+          &quot;schema_version&quot;: 1,
+          &quot;sequence&quot;: 10,
+          &quot;session&quot;: &quot;1cde1face05849907b3a365fdb48ed1afc820285adf555a72af1b23185114961&quot;,
+          &quot;timestamp_ns&quot;: 1793794375289820000
+        }
+      ],
+      &quot;network_acceptance_reported&quot;: true,
+      &quot;observed_behavior&quot;: &quot;Non-empty submission bytes observed on an identifiable transport connection.&quot;,
+      &quot;payload_sha256&quot;: &quot;1f195d2ebfa79ab9158862a6c2535c652424f6013cb364f068487c883ca58503&quot;,
+      &quot;possible_privacy_consequence&quot;: &quot;The RPC observer can associate these submitted bytes with this connection; this does not identify a person.&quot;,
+      &quot;rule_id&quot;: &quot;SC-002&quot;,
+      &quot;severity&quot;: &quot;MEDIUM&quot;,
+      &quot;suggested_investigation&quot;: &quot;Review the server trust model and whether an independent broadcast path reduces the observer&#x27;s linkability.&quot;,
+      &quot;title&quot;: &quot;Broadcast payload linked to a transport session&quot;
+    },
+    {
+      &quot;affected_component&quot;: &quot;lightwalletd broadcast transport&quot;,
+      &quot;evidence&quot;: [
+        {
+          &quot;elapsed_ns&quot;: 105859811708,
+          &quot;event_hash&quot;: &quot;0473b66500d75e1b07301ff3c96dc6caa24ad9772e3050a72783577c885e1837&quot;,
+          &quot;metadata&quot;: {
+            &quot;payload_sha256&quot;: &quot;44b40d033326372456b14e4357eb026675100b13562b1c9fc56ee4933b68c744&quot;,
+            &quot;payload_size&quot;: 9166
+          },
+          &quot;method&quot;: &quot;SendTransaction&quot;,
+          &quot;mode&quot;: &quot;upstream&quot;,
+          &quot;phase&quot;: &quot;request&quot;,
+          &quot;previous_hash&quot;: &quot;ddb0d69ad864e2e784d37f6e6a6692f9800ca2192fca59049bb9ca5b70847a67&quot;,
+          &quot;schema_version&quot;: 1,
+          &quot;sequence&quot;: 411,
+          &quot;session&quot;: &quot;6ef3635518ab7b948aa92c09783dda2c8f652454fe5e6c673d7ec8308830a0c2&quot;,
+          &quot;timestamp_ns&quot;: 1793794412217769000
+        },
+        {
+          &quot;elapsed_ns&quot;: 106072203000,
+          &quot;event_hash&quot;: &quot;936eeaa0016ba748615999813c779030e407ada699a08f0515022a2335c9c6c6&quot;,
+          &quot;metadata&quot;: {
+            &quot;error_code&quot;: 0,
+            &quot;request_sequence&quot;: 411
+          },
+          &quot;method&quot;: &quot;SendTransaction&quot;,
+          &quot;mode&quot;: &quot;upstream&quot;,
+          &quot;phase&quot;: &quot;response&quot;,
+          &quot;previous_hash&quot;: &quot;0473b66500d75e1b07301ff3c96dc6caa24ad9772e3050a72783577c885e1837&quot;,
+          &quot;schema_version&quot;: 1,
+          &quot;sequence&quot;: 412,
+          &quot;session&quot;: &quot;6ef3635518ab7b948aa92c09783dda2c8f652454fe5e6c673d7ec8308830a0c2&quot;,
+          &quot;timestamp_ns&quot;: 1793794412430153000
+        }
+      ],
+      &quot;network_acceptance_reported&quot;: true,
+      &quot;observed_behavior&quot;: &quot;Non-empty submission bytes observed on an identifiable transport connection.&quot;,
+      &quot;payload_sha256&quot;: &quot;44b40d033326372456b14e4357eb026675100b13562b1c9fc56ee4933b68c744&quot;,
+      &quot;possible_privacy_consequence&quot;: &quot;The RPC observer can associate these submitted bytes with this connection; this does not identify a person.&quot;,
+      &quot;rule_id&quot;: &quot;SC-002&quot;,
+      &quot;severity&quot;: &quot;MEDIUM&quot;,
+      &quot;suggested_investigation&quot;: &quot;Review the server trust model and whether an independent broadcast path reduces the observer&#x27;s linkability.&quot;,
+      &quot;title&quot;: &quot;Broadcast payload linked to a transport session&quot;
+    },
+    {
+      &quot;affected_component&quot;: &quot;lightwalletd broadcast transport&quot;,
+      &quot;evidence&quot;: [
+        {
+          &quot;elapsed_ns&quot;: 130147012833,
+          &quot;event_hash&quot;: &quot;33fc9f23b9dc15f606663776a9daedecfaad0fc14148c42d449275b3c4aa61e9&quot;,
+          &quot;metadata&quot;: {
+            &quot;payload_sha256&quot;: &quot;c6ef1ae3e7367d789094a3e7ec8409ba998abc5709dc27a5a513300d86cdbfec&quot;,
+            &quot;payload_size&quot;: 9166
+          },
+          &quot;method&quot;: &quot;SendTransaction&quot;,
+          &quot;mode&quot;: &quot;upstream&quot;,
+          &quot;phase&quot;: &quot;request&quot;,
+          &quot;previous_hash&quot;: &quot;f9c4c12c0d57515a4c66994854e5d4dcd986aabffe33c880be9b3a84f64f0456&quot;,
+          &quot;schema_version&quot;: 1,
+          &quot;sequence&quot;: 817,
+          &quot;session&quot;: &quot;f6e7a74ec5c8013600ab9a1f9493b44e0af2dfd89a2a3880569b15037126df94&quot;,
+          &quot;timestamp_ns&quot;: 1793794436504110000
+        },
+        {
+          &quot;elapsed_ns&quot;: 130335225375,
+          &quot;event_hash&quot;: &quot;ce2d3ffbde2df929062b52bd8ad8b0c1ecffb38db20754783e28c0d3f9b256a8&quot;,
+          &quot;metadata&quot;: {
+            &quot;error_code&quot;: 0,
+            &quot;request_sequence&quot;: 817
+          },
+          &quot;method&quot;: &quot;SendTransaction&quot;,
+          &quot;mode&quot;: &quot;upstream&quot;,
+          &quot;phase&quot;: &quot;response&quot;,
+          &quot;previous_hash&quot;: &quot;33fc9f23b9dc15f606663776a9daedecfaad0fc14148c42d449275b3c4aa61e9&quot;,
+          &quot;schema_version&quot;: 1,
+          &quot;sequence&quot;: 818,
+          &quot;session&quot;: &quot;f6e7a74ec5c8013600ab9a1f9493b44e0af2dfd89a2a3880569b15037126df94&quot;,
+          &quot;timestamp_ns&quot;: 1793794436692318000
+        }
+      ],
+      &quot;network_acceptance_reported&quot;: true,
+      &quot;observed_behavior&quot;: &quot;Non-empty submission bytes observed on an identifiable transport connection.&quot;,
+      &quot;payload_sha256&quot;: &quot;c6ef1ae3e7367d789094a3e7ec8409ba998abc5709dc27a5a513300d86cdbfec&quot;,
+      &quot;possible_privacy_consequence&quot;: &quot;The RPC observer can associate these submitted bytes with this connection; this does not identify a person.&quot;,
+      &quot;rule_id&quot;: &quot;SC-002&quot;,
+      &quot;severity&quot;: &quot;MEDIUM&quot;,
+      &quot;suggested_investigation&quot;: &quot;Review the server trust model and whether an independent broadcast path reduces the observer&#x27;s linkability.&quot;,
+      &quot;title&quot;: &quot;Broadcast payload linked to a transport session&quot;
+    },
+    {
+      &quot;affected_component&quot;: &quot;lightwalletd broadcast transport&quot;,
+      &quot;evidence&quot;: [
+        {
+          &quot;elapsed_ns&quot;: 164828791542,
+          &quot;event_hash&quot;: &quot;bf3260818b9a6570df3dd187b6a9372959e8fb3f682b004b14cf8a5ca2bcba91&quot;,
+          &quot;metadata&quot;: {
+            &quot;payload_sha256&quot;: &quot;9f084f063966b43553de4854efcda3ef50ad0a0c1c1df77a740222569a6926da&quot;,
+            &quot;payload_size&quot;: 9166
+          },
+          &quot;method&quot;: &quot;SendTransaction&quot;,
+          &quot;mode&quot;: &quot;upstream&quot;,
+          &quot;phase&quot;: &quot;request&quot;,
+          &quot;previous_hash&quot;: &quot;fa61ad9d9a7833a6fec4eff193f5dd6bf4eeed0d953a448b8f4304035a83a74a&quot;,
+          &quot;schema_version&quot;: 1,
+          &quot;sequence&quot;: 1227,
+          &quot;session&quot;: &quot;8a6ca51649e2bd66fa3a84d2d7590d543910c7fe5b0f1f5c31c37c323db3e969&quot;,
+          &quot;timestamp_ns&quot;: 1793794471184666000
+        },
+        {
+          &quot;elapsed_ns&quot;: 165035043917,
+          &quot;event_hash&quot;: &quot;3aeda83f7ebf74e6b6945e99daac090296e7c339f18dd0e6008a2aea1a998c23&quot;,
+          &quot;metadata&quot;: {
+            &quot;error_code&quot;: 0,
+            &quot;request_sequence&quot;: 1227
+          },
+          &quot;method&quot;: &quot;SendTransaction&quot;,
+          &quot;mode&quot;: &quot;upstream&quot;,
+          &quot;phase&quot;: &quot;response&quot;,
+          &quot;previous_hash&quot;: &quot;bf3260818b9a6570df3dd187b6a9372959e8fb3f682b004b14cf8a5ca2bcba91&quot;,
+          &quot;schema_version&quot;: 1,
+          &quot;sequence&quot;: 1228,
+          &quot;session&quot;: &quot;8a6ca51649e2bd66fa3a84d2d7590d543910c7fe5b0f1f5c31c37c323db3e969&quot;,
+          &quot;timestamp_ns&quot;: 1793794471390911000
+        }
+      ],
+      &quot;network_acceptance_reported&quot;: true,
+      &quot;observed_behavior&quot;: &quot;Non-empty submission bytes observed on an identifiable transport connection.&quot;,
+      &quot;payload_sha256&quot;: &quot;9f084f063966b43553de4854efcda3ef50ad0a0c1c1df77a740222569a6926da&quot;,
+      &quot;possible_privacy_consequence&quot;: &quot;The RPC observer can associate these submitted bytes with this connection; this does not identify a person.&quot;,
+      &quot;rule_id&quot;: &quot;SC-002&quot;,
+      &quot;severity&quot;: &quot;MEDIUM&quot;,
+      &quot;suggested_investigation&quot;: &quot;Review the server trust model and whether an independent broadcast path reduces the observer&#x27;s linkability.&quot;,
+      &quot;title&quot;: &quot;Broadcast payload linked to a transport session&quot;
+    },
+    {
+      &quot;affected_component&quot;: &quot;lightwalletd broadcast transport&quot;,
+      &quot;evidence&quot;: [
+        {
+          &quot;elapsed_ns&quot;: 192274545417,
+          &quot;event_hash&quot;: &quot;436b9a90fc93773f1ef912f412344e175046beda12f09650538f967f8dc20ce3&quot;,
+          &quot;metadata&quot;: {
+            &quot;payload_sha256&quot;: &quot;3f408b2b01e720b5db9c76c591f168a944d8a05116f5e560d31e52cd007c93e3&quot;,
+            &quot;payload_size&quot;: 9166
+          },
+          &quot;method&quot;: &quot;SendTransaction&quot;,
+          &quot;mode&quot;: &quot;upstream&quot;,
+          &quot;phase&quot;: &quot;request&quot;,
+          &quot;previous_hash&quot;: &quot;03e0b021d58e69d250aa4c7f133a5c64003f4aee8e26f53017c8a030e5a6d2ba&quot;,
+          &quot;schema_version&quot;: 1,
+          &quot;sequence&quot;: 1647,
+          &quot;session&quot;: &quot;5fc5c92390ae49a072ce9bc1af0770532addf381fb707214ec6c8ad1b5575450&quot;,
+          &quot;timestamp_ns&quot;: 1793794498629451000
+        },
+        {
+          &quot;elapsed_ns&quot;: 192478133000,
+          &quot;event_hash&quot;: &quot;5e83eed17f2c13ce860cb4744c26ba203716e75a3e6caf3ec0fbb46c9866eb3b&quot;,
+          &quot;metadata&quot;: {
+            &quot;error_code&quot;: 0,
+            &quot;request_sequence&quot;: 1647
+          },
+          &quot;method&quot;: &quot;SendTransaction&quot;,
+          &quot;mode&quot;: &quot;upstream&quot;,
+          &quot;phase&quot;: &quot;response&quot;,
+          &quot;previous_hash&quot;: &quot;436b9a90fc93773f1ef912f412344e175046beda12f09650538f967f8dc20ce3&quot;,
+          &quot;schema_version&quot;: 1,
+          &quot;sequence&quot;: 1648,
+          &quot;session&quot;: &quot;5fc5c92390ae49a072ce9bc1af0770532addf381fb707214ec6c8ad1b5575450&quot;,
+          &quot;timestamp_ns&quot;: 1793794498833032000
+        }
+      ],
+      &quot;network_acceptance_reported&quot;: true,
+      &quot;observed_behavior&quot;: &quot;Non-empty submission bytes observed on an identifiable transport connection.&quot;,
+      &quot;payload_sha256&quot;: &quot;3f408b2b01e720b5db9c76c591f168a944d8a05116f5e560d31e52cd007c93e3&quot;,
+      &quot;possible_privacy_consequence&quot;: &quot;The RPC observer can associate these submitted bytes with this connection; this does not identify a person.&quot;,
+      &quot;rule_id&quot;: &quot;SC-002&quot;,
+      &quot;severity&quot;: &quot;MEDIUM&quot;,
+      &quot;suggested_investigation&quot;: &quot;Review the server trust model and whether an independent broadcast path reduces the observer&#x27;s linkability.&quot;,
+      &quot;title&quot;: &quot;Broadcast payload linked to a transport session&quot;
+    }
+  ],
+  &quot;limitations&quot;: [
+    &quot;Defined tests cover SC-001 through SC-004; SC-005 requires a compatible saved baseline.&quot;,
+    &quot;A transport peer identifies a connection, not a person or wallet.&quot;,
+    &quot;Local fixture replay is not consensus validation or network acceptance.&quot;,
+    &quot;Transaction SHA-256 fingerprints are not Zcash transaction IDs.&quot;,
+    &quot;No violation observed does not establish anonymity.&quot;
+  ],
+  &quot;payment_policy&quot;: null,
+  &quot;policy&quot;: &quot;strict&quot;,
+  &quot;rules&quot;: [
+    {
+      &quot;coverage&quot;: &quot;broadcast-observed&quot;,
+      &quot;covered&quot;: true,
+      &quot;executed&quot;: true,
+      &quot;rule_id&quot;: &quot;SC-002&quot;
+    }
+  ],
+  &quot;schema_version&quot;: 1,
+  &quot;status&quot;: &quot;FAIL&quot;,
+  &quot;sync_policy&quot;: null
+}</pre></details></body></html>
