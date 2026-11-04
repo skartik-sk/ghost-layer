@@ -297,7 +297,7 @@ async fn read_request(sock: &mut tokio::net::TcpStream) -> Option<(String, Vec<u
     }
 }
 
-async fn respond(mut sock: tokio::net::TcpStream, a: Arc<DashArgs>, events: Arc<PathBuf>, seen: Arc<Mutex<Value>>, jobs: Jobs) {
+async fn respond(mut sock: tokio::net::TcpStream, a: Arc<DashArgs>, events: Arc<PathBuf>, seen: Arc<Mutex<Value>>, jobs: Jobs, token: Arc<String>) {
     let Some((req, body_in)) = read_request(&mut sock).await else { return };
     let line = req.lines().next().unwrap_or_default();
     // DNS-rebinding guard: only answer requests addressed to the loopback name we listen on.
@@ -305,10 +305,18 @@ async fn respond(mut sock: tokio::net::TcpStream, a: Arc<DashArgs>, events: Arc<
     let host_ok = req.lines().skip(1).find_map(|l| l.split_once(':').filter(|(k, _)| k.eq_ignore_ascii_case("host")).map(|(_, v)| v.trim().to_string()))
         .is_some_and(|h| [format!("127.0.0.1:{port}"), format!("localhost:{port}"), format!("[::1]:{port}")].contains(&h));
     let parts: Vec<&str> = line.split_whitespace().take(2).collect();
+    // Pay/Proof/job endpoints need the per-run token that `ghost dashboard` printed to YOUR terminal,
+    // so other local processes (or users) can't drive payments; the read-only Live view stays open.
+    let hdr = |name: &str| req.lines().skip(1).find_map(|l| l.split_once(':').filter(|(k, _)| k.eq_ignore_ascii_case(name)).map(|(_, v)| v.trim().to_string()));
+    let path = parts.get(1).copied().unwrap_or_default();
+    let needs_token = path.starts_with("/api/job/") || path.starts_with("/api/pay") || path.starts_with("/api/proof/");
+    let token_ok = hdr("x-ghost-token").is_some_and(|t| t.len() == token.len() && t.bytes().zip(token.bytes()).fold(0u8, |acc, (x, y)| acc | (x ^ y)) == 0);
     let (status, ctype, body) = if !host_ok {
         ("421 Misdirected Request", "text/plain", "bad Host header".to_string())
+    } else if needs_token && !token_ok {
+        ("401 Unauthorized", "application/json", json!({"error": "missing or wrong token: open the URL that `ghost dashboard` printed"}).to_string())
     } else { match parts.as_slice() {
-        ["GET", "/"] | ["GET", "/index.html"] => ("200 OK", "text/html; charset=utf-8", PAGE.to_string()),
+        ["GET", p] if *p == "/" || *p == "/index.html" || p.starts_with("/?") => ("200 OK", "text/html; charset=utf-8", PAGE.to_string()),
         ["GET", "/api/state"] => {
             let s = seen.lock().unwrap().clone();
             ("200 OK", "application/json", state(&a, &events, &s).to_string())
@@ -361,11 +369,17 @@ pub(crate) async fn dashboard(a: DashArgs, json_out: bool) -> Result<u8, Fail> {
     let events = Arc::new(a.events.clone().unwrap_or_else(|| data_dir().join("upstream-events.jsonl")));
     let seen = Arc::new(Mutex::new(Value::Null));
     let jobs: Jobs = Arc::new(Mutex::new((0, Default::default())));
+    let token = Arc::new({
+        use rand::RngExt;
+        let b: [u8; 16] = rand::rng().random();
+        hex::encode(b)
+    });
     tokio::spawn(measure_loop(a.nym.clone(), seen.clone()));
     if json_out {
-        println!("{}", json!({"schema_version": 1, "ok": true, "url": format!("http://{}/", a.listen), "events": events.as_ref()}));
+        println!("{}", json!({"schema_version": 1, "ok": true, "url": format!("http://{}/?t={}", a.listen, token), "events": events.as_ref()}));
     } else {
-        println!("👻 Ghost Wallet: http://{}/  (Pay · Proof · Live; loopback only; Ctrl-C to stop)", a.listen);
+        println!("👻 Ghost Wallet: http://{}/?t={}  (Pay · Proof · Live; loopback only; Ctrl-C to stop)", a.listen, token);
+        println!("   the ?t= token authorises Pay/Proof for this run only; don't share it");
         println!("   pay: {}  ·  proof create: {}  ·  cap {} TAZ  ·  {}",
             if a.wallet.is_some() && a.identity.is_some() { "enabled" } else { "disabled (--wallet/--identity)" },
             if a.ufvk_file.is_some() { "enabled" } else { "disabled (--ufvk-file)" }, a.max_amount,
@@ -378,6 +392,6 @@ pub(crate) async fn dashboard(a: DashArgs, json_out: bool) -> Result<u8, Fail> {
         if !peer.ip().is_loopback() {
             continue;
         }
-        tokio::spawn(respond(sock, a.clone(), events.clone(), seen.clone(), jobs.clone()));
+        tokio::spawn(respond(sock, a.clone(), events.clone(), seen.clone(), jobs.clone(), token.clone()));
     }
 }

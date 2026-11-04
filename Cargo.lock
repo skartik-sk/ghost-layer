@@ -1135,6 +1135,7 @@ dependencies = [
  "hex",
  "jsonschema",
  "orchard",
+ "rand 0.10.3",
  "rmcp",
  "schemars",
  "serde",

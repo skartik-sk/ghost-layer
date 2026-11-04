@@ -33,6 +33,7 @@ Proof tab (txid pre-filled from the payment) → created a ZecProof (Ironwood ac
 | mainnet address | 400 `recipient must be a testnet address` |
 | `Host: evil.example` (DNS rebinding) | 421 |
 | malformed proof | 400 `paste a zecproof1… string` |
+| Pay/Proof/job **without the per-run token** (any other local process) | 401 `missing or wrong token` (added after review; the page reads `?t=` from the URL `ghost dashboard` prints) |
 
 The wallet, identity and UFVK file are fixed at startup; the page can't choose them.
 

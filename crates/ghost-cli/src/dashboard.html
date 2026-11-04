@@ -497,7 +497,7 @@ button.primary:disabled { opacity: .5; cursor: progress; }
       $('t-' + x).setAttribute('aria-selected', String(x === t));
       $('tab-' + x).hidden = x !== t;
     });
-    if (location.hash !== '#' + t) history.replaceState(null, '', '#' + t);
+    if (location.hash !== '#' + t) history.replaceState(null, '', location.pathname + location.search + '#' + t);
   }
   Array.prototype.forEach.call(document.querySelectorAll('nav.tabs button'), function (b) {
     b.addEventListener('click', function () { show(b.getAttribute('data-tab')); });
@@ -512,8 +512,14 @@ button.primary:disabled { opacity: .5; cursor: progress; }
     if (!app.proof_create_enabled) { $('pc-btn').disabled = true; }
   }).catch(function () {});
 
+  // Per-run token from the URL that `ghost dashboard` printed (required for Pay/Proof).
+  var TOKEN = new URLSearchParams(location.search).get('t') || '';
+  if (!TOKEN) {
+    ['pay-btn', 'pc-btn', 'pv-btn'].forEach(function (id) { $(id).disabled = true; });
+    $('pay-note').textContent = 'Open the URL printed by `ghost dashboard` (it contains ?t=…) to enable Pay and Proof.';
+  }
   function post(path, body) {
-    return fetch(path, { method: 'POST', headers: { 'Content-Type': 'application/json', 'X-Ghost': '1' }, body: JSON.stringify(body) })
+    return fetch(path, { method: 'POST', headers: { 'Content-Type': 'application/json', 'X-Ghost': '1', 'X-Ghost-Token': TOKEN }, body: JSON.stringify(body) })
       .then(function (r) { return r.json().then(function (j) { if (!r.ok) throw new Error(j.error || ('HTTP ' + r.status)); return j; }); });
   }
 
@@ -528,7 +534,7 @@ button.primary:disabled { opacity: .5; cursor: progress; }
     post(path, body).then(function (j) {
       var id = j.job;
       var timer = setInterval(function () {
-        fetch('/api/job/' + id, { cache: 'no-store' }).then(function (r) { return r.json(); }).then(function (job) {
+        fetch('/api/job/' + id, { cache: 'no-store', headers: { 'X-Ghost-Token': TOKEN } }).then(function (r) { return r.json(); }).then(function (job) {
           log.textContent = (job.progress && job.progress.length ? job.progress.join('\n') : 'working…');
           log.scrollTop = log.scrollHeight;
           if (path === '/api/pay') countdown(live, started);

@@ -91,7 +91,7 @@ All commands accept `--json`. Exit codes: `0` ok, `1` runtime failure (or "not m
 
 ## Ghost Wallet: an app built on Ghost Layer
 
-`ghost dashboard --wallet ./w --identity ./w.age --ufvk-file sender.ufvk` → <http://127.0.0.1:9070>: **Pay** (live random-delay countdown → mined), **Proof** (create / verify ZecProofs), **Live** (what the server sees). It is **339 lines of Rust + 557 lines of HTML** on top of the Ghost Layer crates (`ghost-core` queue, `ghost-attacker`, `ghost-transport`), and Pay/Proof run the exact `ghost pay` / `ghost proof` code paths. A real payment and proof made through the UI: [`evidence/app/`](evidence/app/README.md).
+`ghost dashboard --wallet ./w --identity ./w.age --ufvk-file sender.ufvk` → open the printed `http://127.0.0.1:9070/?t=…` URL (the per-run token authorises Pay/Proof): **Pay** (live random-delay countdown → mined), **Proof** (create / verify ZecProofs), **Live** (what the server sees). It is **339 lines of Rust + 557 lines of HTML** on top of the Ghost Layer crates (`ghost-core` queue, `ghost-attacker`, `ghost-transport`), and Pay/Proof run the exact `ghost pay` / `ghost proof` code paths. A real payment and proof made through the UI: [`evidence/app/`](evidence/app/README.md).
 
 | Pay (live countdown) | Proof (verified) |
 |---|---|

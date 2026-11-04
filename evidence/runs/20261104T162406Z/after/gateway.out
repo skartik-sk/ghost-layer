@@ -1,0 +1,10 @@
+👻 Ghost Layer up on 127.0.0.1:9067
+   sync      → http://127.0.0.1:9068 (one long-lived connection)
+   broadcast → http://127.0.0.1:9068 (fresh connection per tx)
+   Point your wallet at 127.0.0.1:9067 (e.g. zcash-devtool ... -s 127.0.0.1:9067)
+   ✅ broadcasts never share the sync connection
+   ✅ random broadcast delay 10–40 s (demo profile, send-mode hold)
+   ✅ grid-aligned GetBlockRange/GetBlock: upstream sees 1152-block cells (nym-swizzle-zcash rule)
+   ⚠️  still visible to the server: tree-state/subtree heights, pool-type filter, transparent-address queries
+   ✅ wallet headers stripped
+   ⚠️  --direct: your IP is visible to the server on both paths (drop --direct to use Nym)
