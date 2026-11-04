@@ -47,8 +47,11 @@ pub(crate) struct McpArgs {
     /// zcash-devtool binary for ghost_pay
     #[arg(long)]
     devtool: Option<PathBuf>,
-    /// Make ghost_pay / ghost_verify / ghost_ip / ghost_doctor use the Nym clients
+    /// Opt OUT of Nym for the tools (default: Nym, like the CLI)
     #[arg(long)]
+    direct: bool,
+    /// (default; kept for compatibility)
+    #[arg(long, hide = true, conflicts_with = "direct")]
     nym: bool,
 }
 
@@ -64,7 +67,7 @@ struct PayPolicy {
 
 #[derive(Clone)]
 pub(crate) struct GhostMcp {
-    nym: bool,
+    direct: bool,
     pay: Option<PayPolicy>,
     tool_router: ToolRouter<Self>,
 }
@@ -73,12 +76,6 @@ pub(crate) struct GhostMcp {
 pub struct VerifyArgs {
     /// Transaction id (64 hex chars, as shown by explorers)
     pub txid: String,
-}
-
-#[derive(Debug, Deserialize, schemars::JsonSchema)]
-pub struct ReportArgs {
-    /// Upstream event log to analyse (default: ~/.ghost-layer/upstream-events.jsonl)
-    pub events: Option<String>,
 }
 
 #[derive(Debug, Deserialize, schemars::JsonSchema)]
@@ -128,8 +125,8 @@ async fn run_ghost(tool: &str, args: Vec<String>, log_args: serde_json::Value, t
 
 #[tool_router]
 impl GhostMcp {
-    fn new(nym: bool, pay: Option<PayPolicy>) -> Self {
-        let mut s = Self { nym, pay, tool_router: Self::tool_router() };
+    fn new(direct: bool, pay: Option<PayPolicy>) -> Self {
+        let mut s = Self { direct, pay, tool_router: Self::tool_router() };
         if s.pay.is_none() {
             s.tool_router.remove_route("ghost_pay");
         }
@@ -137,7 +134,7 @@ impl GhostMcp {
     }
 
     fn nym_flag(&self) -> Vec<String> {
-        if self.nym { vec!["--nym".into()] } else { vec![] }
+        if self.direct { vec!["--direct".into()] } else { vec![] }
     }
 
     #[tool(description = "Ghost Layer broadcast queue: each payment's status (pending/accepted/rejected/failed), random delay, fresh connection id, transport, explorer links. Read-only.")]
@@ -171,8 +168,9 @@ impl GhostMcp {
     }
 
     #[tool(description = "Attacker view: run the linkage heuristics (same-connection, sync-then-send, range fingerprint, same IP) over Ghost Layer's upstream event log and return per-payment results and the overall linkage rate. Read-only.")]
-    async fn ghost_report(&self, Parameters(ReportArgs { events }): Parameters<ReportArgs>) -> CallToolResult {
-        let path = events.map(PathBuf::from).unwrap_or_else(|| data_dir().join("upstream-events.jsonl"));
+    async fn ghost_report(&self) -> CallToolResult {
+        // Always Ghost's own log: an agent must not be able to point this tool at arbitrary files.
+        let path = data_dir().join("upstream-events.jsonl");
         if !path.exists() {
             return CallToolResult::error(vec![ContentBlock::text(format!(
                 "no event log at {} yet: run `ghost up` and make a payment first", path.display()))]);
@@ -252,7 +250,7 @@ pub(crate) async fn mcp(a: McpArgs) -> Result<u8, Fail> {
         None
     };
     eprintln!("ghost mcp: stdio server ready (ghost_pay {})", if pay.is_some() { "ENABLED with caps" } else { "disabled" });
-    let service = GhostMcp::new(a.nym, pay)
+    let service = GhostMcp::new(a.direct, pay)
         .serve(stdio())
         .await
         .map_err(|e| Fail::runtime(format!("mcp: {e}"), "run from an MCP client (stdio)"))?;

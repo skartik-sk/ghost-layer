@@ -20,11 +20,13 @@ Testnet only. NU7 is active (branch `0x77190AD9`, v6 transactions; v4 is invalid
 
 ## Steps
 
-1. Health: `ghost --json doctor --nym` → every `checks[].ok` must be `true`. If a Nym check fails: `scripts/nym_setup.sh up` (or `--reinit` for new exits).
-2. Pay: `ghost --json pay --wallet <dir> --identity <age file> --to <utest1…> --amount <TAZ> --nym`
+Nym is on by default (fails closed if it is down; `--direct` opts out and exposes the user's IP, so only use it if the user asks).
+
+1. Health: `ghost --json doctor` → every `checks[].ok` must be `true`. If a Nym check fails: `scripts/nym_setup.sh up` (or `--reinit` for new exits).
+2. Pay: `ghost --json pay --wallet <dir> --identity <age file> --to <utest1…> --amount <TAZ>`
    - It starts/uses the gateway, syncs, sends, waits a random delay (10–40 s), broadcasts on a fresh connection, then waits until mined (~1–2 min).
    - Exit 0 + `txid`, `height`, `explorer[]` = done. Exit 2 = bad input. Exit 3 = network rejected. Exit 1 with "Insufficient balance": funds need ~10 confirmations (~4 min); retry later.
-3. Verify: `ghost --json verify --nym <txid>` → `state` is `mined|mempool|orphaned|not_found`.
+3. Verify: `ghost --json verify <txid>` → `state` is `mined|mempool|orphaned|not_found`.
 4. Explain to the user: `ghost --json explain`; show `explorer[]` links.
 
 Via MCP (`ghost mcp`): tools `ghost_doctor`, `ghost_status`, `ghost_verify`, `ghost_ip`, `ghost_report`, `ghost_explain`; `ghost_pay` exists only if the human started the server with `--allow-pay` and caps.
@@ -39,6 +41,6 @@ Via MCP (`ghost mcp`): tools `ghost_doctor`, `ghost_status`, `ghost_verify`, `gh
 ## Reading results
 
 - `ghost status`: `delay_s` = random delay before broadcast; `row.conn_id` = the fresh connection used (never the sync one); `row.transport` = `nym-broadcast` means it left through the broadcast Nym exit.
-- `ghost ip --nym`: `paths_unlinkable_by_ip: true` = the server sees two different exit IPs, not yours.
+- `ghost ip`: `paths_unlinkable_by_ip: true` = the server sees two different exit IPs, not yours.
 - `ghost attack`: per payment `linked` (and `linked_by` rules); `rate` = % of payments the server could link. Lower is better; 0 is the goal.
 - What stays visible (tell the user honestly): that a tx exists and its fee, coarse sync activity, tree-state heights, Nym use (to their ISP). See PRIVACY.md.

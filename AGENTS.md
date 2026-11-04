@@ -6,7 +6,7 @@
 2. **Keys stay in the wallet.** Ghost never reads, stores or logs seeds, mnemonics or spending keys. Wallet operations go through zcash-devtool as a subprocess; Ghost only passes the identity *path*. Never commit `wallets/`, `*.age`, or anything from `~/.ghost-layer`.
 3. **`main` must stay green.** Before pushing: `cargo build --release && cargo test` (add `GHOST_ONLINE_TESTS=1` when online), `scripts/e2e_local.sh` and `scripts/e2e_testnet.sh` must pass. Never push a failure.
 4. **Testnet only.** NU7 is active (branch `0x77190AD9`, v6 txs, v4 invalid). Orchard is sealed: shielded funds are in **Ironwood**. Server `testnet.zec.rocks:443`.
-5. **Privacy regressions are bugs:** no wallet metadata upstream, no broadcast on a sync connection, no direct fallback in `--nym` mode, no addresses/txids in the request log, user IP masked in output.
+5. **Privacy regressions are bugs:** no wallet metadata upstream, no broadcast on a sync connection, no direct fallback in Nym mode (the default; `--direct` is the only opt-out), no addresses/txids in the request log, user IP masked in output.
 
 ## Build & test
 

@@ -94,13 +94,13 @@ fn online_outputs_match_schemas() {
     }
     let home = tmp("online");
     // Our real "after" payment (Ghost Layer + Nym), mined at 4582118.
-    let (code, v) = ghost(&home, &["verify", "09f0f0b01942a658197f65563a977c66fc19f8823268b0e547470e022bd3ce69"]);
+    let (code, v) = ghost(&home, &["verify", "--direct", "09f0f0b01942a658197f65563a977c66fc19f8823268b0e547470e022bd3ce69"]);
     assert_eq!(code, 0);
     check("verify", &v);
     assert_eq!(v["state"], "mined");
     assert_eq!(v["height"], 4582118);
 
-    let (_, v) = ghost(&home, &["doctor", "--listen", "127.0.0.1:19068"]);
+    let (_, v) = ghost(&home, &["doctor", "--direct", "--listen", "127.0.0.1:19068"]);
     check("doctor", &v);
     let _ = std::fs::remove_dir_all(home);
 }

@@ -8,7 +8,7 @@
   - Broadcasts happen after a **random delay** (demo 10–40 s, privacy 60–600 s), never right after the wallet reaches the tip. Measured locally: median tip→broadcast went from 3.0 s to 22.4 s, and sync-then-send linkage from 5/5 to 0/5.
   - **Grid-aligned sync**: `GetBlockRange` and `GetBlock(height)` reach the server only as whole 1152-block grid cells (Nym's `nym-swizzle-zcash` rule), so the exact resume point isn't revealed (range chaining 4/5 → 0/5 sessions).
   - Each wallet connection gets its own upstream sync connection, so separate sessions aren't chained by a shared socket.
-  - **With `--nym`:** the server sees two *different* Nym exit IPs for sync and broadcast, never yours (measured: `195.238.126.176` ≠ `157.254.54.45`). DNS is resolved by the exit. It **fails closed**: if a Nym client is down, the wallet gets `UNAVAILABLE`, never a direct connection. `ghost doctor --nym` and `ghost verify --nym` also contact the server only via Nym (verify uses the broadcast exit, never the sync exit, so a txid lookup cannot link the two).
+  - **With Nym (the default; `--direct` opts out):** the server sees two *different* Nym exit IPs for sync and broadcast, never yours (measured: `195.238.126.176` ≠ `157.254.54.45`). DNS is resolved by the exit. It **fails closed**: if a Nym client is down, the wallet gets `UNAVAILABLE`, never a direct connection. `ghost doctor` and `ghost verify` also contact the server only via Nym (verify uses the broadcast exit, never the sync exit, so a txid lookup cannot link the two).
   - Wallet request headers (User-Agent, `X-Forwarded-For`, `Forwarded`, `Via`, …) are never forwarded. Requests are rebuilt from the message body.
 
 ## 2. What does the app reveal, and to whom?

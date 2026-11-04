@@ -158,13 +158,15 @@ pub(crate) async fn pay(a: PayArgs, json: bool) -> Result<u8, Fail> {
         let _ = std::fs::create_dir_all(data_dir());
         let mut cmd = Command::new(std::env::current_exe().map_err(|e| Fail::runtime(e.to_string(), "reinstall ghost"))?);
         cmd.args(["up", "--server", &a.server, "--listen", &server, "--profile", &a.profile]);
-        if a.nym.nym {
-            cmd.args(["--nym", "--nym-sync", &a.nym.nym_sync.to_string(), "--nym-broadcast", &a.nym.nym_broadcast.to_string()]);
+        if !a.nym.on() {
+            cmd.arg("--direct");
+        } else {
+            cmd.args(["--nym-sync", &a.nym.nym_sync.to_string(), "--nym-broadcast", &a.nym.nym_broadcast.to_string()]);
         }
         let errf = std::fs::File::create(&log).map_err(|e| Fail::runtime(format!("{}: {e}", log.display()), "check ~/.ghost-layer"))?;
         let child = cmd.stdout(Stdio::null()).stderr(errf).spawn().map_err(|e| Fail::runtime(e.to_string(), "run `ghost up` yourself"))?;
         _started = Started(Some(child));
-        ui.step(&format!("👻 starting Ghost Layer{} on {} …", if a.nym.nym { " (Nym)" } else { "" }, a.listen));
+        ui.step(&format!("👻 starting Ghost Layer{} on {} …", if a.nym.on() { " (Nym)" } else { "" }, a.listen));
         let mut ok = false;
         for _ in 0..240 {
             if gateway_alive(a.listen).await.is_some() {
@@ -265,7 +267,7 @@ pub(crate) async fn pay(a: PayArgs, json: bool) -> Result<u8, Fail> {
     let links = explorer_links(&txid);
     if json {
         println!("{}", json!({"schema_version": 1, "ok": true, "txid": txid, "amount_zat": zat, "to": a.to,
-            "gateway": gw_mode, "nym": a.nym.nym, "height": st.height, "confirmations": st.confs,
+            "gateway": gw_mode, "nym": a.nym.on(), "height": st.height, "confirmations": st.confs,
             "delay_s": row.as_ref().map(|r| (r.scheduled_at_ms - r.received_at_ms) as f64 / 1000.0),
             "broadcast_conn": row.as_ref().and_then(|r| r.conn_id), "transport": row.as_ref().and_then(|r| r.transport.clone()),
             "elapsed_s": t0.elapsed().as_secs_f64(), "explorer": links}));

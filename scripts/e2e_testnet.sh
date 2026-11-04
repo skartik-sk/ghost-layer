@@ -27,7 +27,7 @@ GW_PID=""
 trap '[[ -n "$GW_PID" ]] && kill "$GW_PID" 2>/dev/null || true' EXIT
 
 cargo build --release -q -p ghost-cli || fail "cargo build"
-NYMFLAG=(); [[ "$MODE" == nym ]] && NYMFLAG=(--nym)
+NYMFLAG=(); [[ "$MODE" == nym ]] || NYMFLAG=(--direct)   # Nym is the default
 "$GHOST" doctor ${NYMFLAG[@]+"${NYMFLAG[@]}"} --listen 127.0.0.1:19067 || fail "ghost doctor"
 ok "ghost doctor green ($MODE)"
 

@@ -21,7 +21,7 @@ webpki-roots = "1.0.11"
 hyper-util = { version = "0.1.21", features = ["tokio"] }
 tower = "0.5.3"
 http = "1.5.0"
-clap = { version = "4.6.7", features = ["derive"] }
+clap = { version = "4.6.7", features = ["derive", "env"] }
 rusqlite = { version = "0.41.1", features = ["bundled"] }
 rand = "0.10.3"
 tracing = "0.1.44"

@@ -129,4 +129,4 @@ for i in $(seq 1 90); do
 done
 status
 port_up 1080 && port_up 1081 || die "clients did not start listening within 90 s"
-echo "✅ Nym ready: ghost up --nym  (sync via :1080, broadcast via :1081)"
+echo "✅ Nym ready: ghost up  (Nym is the default; sync via :1080, broadcast via :1081)"

@@ -43,7 +43,8 @@ async fn measure_loop(nym: NymArgs, slot: Arc<Mutex<Value>>) {
     loop {
         let direct = ghost_transport::public_ip(None).await;
         let up = |a: SocketAddr| async move { tokio::net::TcpStream::connect(a).await.is_ok() };
-        let use_nym = nym.nym || (up(nym.nym_sync).await && up(nym.nym_broadcast).await);
+        let use_nym = nym.on();
+        let _ = up;
         let (sync, bcast) = if use_nym {
             (ghost_transport::public_ip(Some(nym.nym_sync)).await, ghost_transport::public_ip(Some(nym.nym_broadcast)).await)
         } else {
@@ -120,7 +121,14 @@ async fn respond(mut sock: tokio::net::TcpStream, a: Arc<DashArgs>, events: Arc<
     let Ok(Ok(n)) = tokio::time::timeout(Duration::from_secs(5), sock.read(&mut buf)).await else { return };
     let req = String::from_utf8_lossy(&buf[..n]);
     let line = req.lines().next().unwrap_or_default();
-    let (status, ctype, body) = match line.split_whitespace().take(2).collect::<Vec<_>>().as_slice() {
+    // DNS-rebinding guard: only answer requests addressed to the loopback name we listen on.
+    let port = a.listen.port();
+    let host_ok = req.lines().skip(1).find_map(|l| l.split_once(':').filter(|(k, _)| k.eq_ignore_ascii_case("host")).map(|(_, v)| v.trim().to_string()))
+        .is_some_and(|h| [format!("127.0.0.1:{port}"), format!("localhost:{port}"), format!("[::1]:{port}")].contains(&h));
+    let parts: Vec<&str> = line.split_whitespace().take(2).collect();
+    let (status, ctype, body) = if !host_ok {
+        ("421 Misdirected Request", "text/plain", "bad Host header".to_string())
+    } else { match parts.as_slice() {
         ["GET", "/"] | ["GET", "/index.html"] => ("200 OK", "text/html; charset=utf-8", PAGE.to_string()),
         ["GET", "/api/state"] => {
             let s = seen.lock().unwrap().clone();
@@ -128,7 +136,7 @@ async fn respond(mut sock: tokio::net::TcpStream, a: Arc<DashArgs>, events: Arc<
         }
         ["GET", _] => ("404 Not Found", "text/plain", "not found".into()),
         _ => ("405 Method Not Allowed", "text/plain", "GET only".into()),
-    };
+    } };
     let head = format!(
         "HTTP/1.1 {status}\r\nContent-Type: {ctype}\r\nContent-Length: {}\r\nCache-Control: no-store\r\n\
          Content-Security-Policy: default-src 'none'; script-src 'unsafe-inline'; style-src 'unsafe-inline'; connect-src 'self'; img-src 'self' data:\r\n\

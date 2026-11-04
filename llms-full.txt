@@ -1,6 +1,6 @@
 # Ghost Layer
 
-> A local gateway between any lightwalletd-compatible Zcash wallet and the light-wallet server that stops the server from linking your payments to your wallet: split broadcast (fresh connection per tx), randomized broadcast delay, grid-aligned sync (Nym's nym-swizzle-zcash rule) and the Nym mixnet (different exits for sync and broadcast, fail closed). Rust CLI `ghost`; testnet only. Measured: 100 % → 0 % payments linked by an honest-but-curious server.
+> A local gateway between any lightwalletd-compatible Zcash wallet and the light-wallet server that stops the server from linking your payments to your wallet: split broadcast (fresh connection per tx), randomized broadcast delay, grid-aligned sync (Nym's nym-swizzle-zcash rule) and the Nym mixnet (different exits for sync and broadcast, fail closed). Rust CLI `ghost`; Nym is ON by default (`--direct` opts out; fails closed if Nym is down); testnet only. Measured: 100 % → 0 % payments linked by an honest-but-curious server.
 
 Zcash facts for agents (do not write outdated code): **testnet only**; NU7 is active (consensus branch `0x77190AD9`); transactions are v6 (v4 is invalid); **Orchard is sealed: new shielded funds go to the Ironwood pool** (Ironwood reuses Orchard's key tree and address format); unified addresses start `utest1`; server `testnet.zec.rocks:443` (dead: `lightwalletd.testnet.electriccoin.co`, `testnet.lightwalletd.com`); explorer `https://testnet.zcashexplorer.app/transactions/<txid>`. Ghost never sees seeds or spending keys; the wallet (zcash-devtool) holds them.
 
@@ -8,12 +8,12 @@ The three leaks it fixes: (1) IP → Nym exits; (2) sync-then-send timing → ev
 
 ## Commands (all accept `--json`; exit 0 ok, 1 runtime, 2 usage, 3 tx rejected)
 
-- `ghost pay --wallet ./w --identity ./w.age --to utest1… --amount 0.001 --nym` — one-command private payment; waits until mined. JSON: `{txid, height, confirmations, delay_s, broadcast_conn, transport, explorer[]}`
-- `ghost up --nym --profile demo` — gateway on 127.0.0.1:9067; point the wallet at it
+- `ghost pay --wallet ./w --identity ./w.age --to utest1… --amount 0.001` — one-command private payment; waits until mined. JSON: `{txid, height, confirmations, delay_s, broadcast_conn, transport, explorer[]}`
+- `ghost up --profile demo` — gateway on 127.0.0.1:9067; point the wallet at it
 - `ghost status` — broadcast queue `{broadcasts[]{row{txid,status,…}, delay_s, explorer[]}}`
-- `ghost verify --nym 09f0f0b01942a658197f65563a977c66fc19f8823268b0e547470e022bd3ce69` — `{state, height, confirmations, explorer[]}`
-- `ghost ip --nym` — which IP the server sees per path `{sync_path_ip, broadcast_path_ip, paths_unlinkable_by_ip}`
-- `ghost doctor --nym` — health checks `{checks[]{name,ok,detail}}`
+- `ghost verify 09f0f0b01942a658197f65563a977c66fc19f8823268b0e547470e022bd3ce69` — `{state, height, confirmations, explorer[]}`
+- `ghost ip` — which IP the server sees per path `{sync_path_ip, broadcast_path_ip, paths_unlinkable_by_ip}`
+- `ghost doctor` — health checks `{checks[]{name,ok,detail}}`
 - `ghost attack --events ~/.ghost-layer/upstream-events.jsonl` — attacker heuristics `{sends[]{linked, linked_by[]}, rate}`
 - `ghost report --attack --before b.jsonl --after a.jsonl --nym-events n.jsonl` — writes evidence/ATTACK_RESULTS.md
 - `ghost explain` — plain-language explanation `{leaks[], not_hidden[]}`
@@ -88,7 +88,7 @@ Options:
       --profile <PROFILE>              Broadcast delay profile if Ghost starts the gateway [default: demo] [possible values: demo, privacy]
       --devtool <DEVTOOL>              zcash-devtool binary (default: $ZCASH_DEVTOOL or `zcash-devtool` on PATH)
       --mine-timeout <MINE_TIMEOUT>    Give up waiting for the block after this many seconds [default: 900]
-      --nym                            Route sync and broadcast through two Nym SOCKS5 clients with different exits (fail closed)
+      --direct                         Opt OUT of Nym: connect directly (the server then sees your IP on both paths). Default: sync and broadcast go through two Nym SOCKS5 clients with different exits, fail closed
       --nym-sync <NYM_SYNC>            Nym SOCKS5 client used for SYNC [default: 127.0.0.1:1080]
       --nym-broadcast <NYM_BROADCAST>  Nym SOCKS5 client used for BROADCAST (must be a different client/exit than sync) [default: 127.0.0.1:1081]
   -h, --help                           Print help
@@ -120,8 +120,8 @@ Options:
           Broadcast delay profile: demo = 10-40 s, privacy = 60-600 s [default: demo] [possible values: demo, privacy]
       --send-mode <SEND_MODE>
           hold: wallet waits for the real broadcast result; queue: answer at once, track in `ghost status` [default: hold] [possible values: hold, queue]
-      --nym
-          Route sync and broadcast through two Nym SOCKS5 clients with different exits (fail closed)
+      --direct
+          Opt OUT of Nym: connect directly (the server then sees your IP on both paths). Default: sync and broadcast go through two Nym SOCKS5 clients with different exits, fail closed
       --nym-sync <NYM_SYNC>
           Nym SOCKS5 client used for SYNC [default: 127.0.0.1:1080]
       --nym-broadcast <NYM_BROADCAST>
@@ -160,11 +160,12 @@ Arguments:
 
 Options:
       --json                           Machine-readable JSON output
-      --ufvk <UFVK>                    Unified full viewing key (uviewtest1…): decrypt and show what this tx paid to that wallet. Read-only; never a spending key
-      --server <SERVER>                [default: testnet.zec.rocks:443]
+      --ufvk <UFVK>                    Unified full viewing key (uviewtest1…): decrypt and show what this tx paid to that wallet. Read-only; never a spending key. Prefer --ufvk-file or GHOST_UFVK (argv is visible to other local users) [env: GHOST_UFVK]
+      --ufvk-file <UFVK_FILE>          Read the UFVK from this file instead
   -v, --verbose                        More logging (upstream request log)
-      --nym                            Route sync and broadcast through two Nym SOCKS5 clients with different exits (fail closed)
   -q, --quiet                          Only errors
+      --server <SERVER>                [default: testnet.zec.rocks:443]
+      --direct                         Opt OUT of Nym: connect directly (the server then sees your IP on both paths). Default: sync and broadcast go through two Nym SOCKS5 clients with different exits, fail closed
       --nym-sync <NYM_SYNC>            Nym SOCKS5 client used for SYNC [default: 127.0.0.1:1080]
       --nym-broadcast <NYM_BROADCAST>  Nym SOCKS5 client used for BROADCAST (must be a different client/exit than sync) [default: 127.0.0.1:1081]
   -h, --help                           Print help
@@ -178,12 +179,12 @@ Which IP the server sees on the SYNC and BROADCAST paths (real measurement)
 Usage: ghost ip [OPTIONS]
 
 Options:
+      --direct                         Opt OUT of Nym: connect directly (the server then sees your IP on both paths). Default: sync and broadcast go through two Nym SOCKS5 clients with different exits, fail closed
       --json                           Machine-readable JSON output
-      --nym                            Route sync and broadcast through two Nym SOCKS5 clients with different exits (fail closed)
-      --nym-sync <NYM_SYNC>            Nym SOCKS5 client used for SYNC [default: 127.0.0.1:1080]
   -v, --verbose                        More logging (upstream request log)
-      --nym-broadcast <NYM_BROADCAST>  Nym SOCKS5 client used for BROADCAST (must be a different client/exit than sync) [default: 127.0.0.1:1081]
+      --nym-sync <NYM_SYNC>            Nym SOCKS5 client used for SYNC [default: 127.0.0.1:1080]
   -q, --quiet                          Only errors
+      --nym-broadcast <NYM_BROADCAST>  Nym SOCKS5 client used for BROADCAST (must be a different client/exit than sync) [default: 127.0.0.1:1081]
       --show-real-ip                   Print your own IP in full (masked by default so it doesn't end up in screenshots/logs)
   -h, --help                           Print help
 ```
@@ -200,7 +201,7 @@ Options:
       --server <SERVER>                [default: testnet.zec.rocks:443]
       --listen <LISTEN>                [default: 127.0.0.1:9067]
   -v, --verbose                        More logging (upstream request log)
-      --nym                            Route sync and broadcast through two Nym SOCKS5 clients with different exits (fail closed)
+      --direct                         Opt OUT of Nym: connect directly (the server then sees your IP on both paths). Default: sync and broadcast go through two Nym SOCKS5 clients with different exits, fail closed
   -q, --quiet                          Only errors
       --nym-sync <NYM_SYNC>            Nym SOCKS5 client used for SYNC [default: 127.0.0.1:1080]
       --nym-broadcast <NYM_BROADCAST>  Nym SOCKS5 client used for BROADCAST (must be a different client/exit than sync) [default: 127.0.0.1:1081]
@@ -274,7 +275,7 @@ Options:
       --evidence <EVIDENCE>            Evidence directory with shadecheck/{before,after}/events.jsonl for the before/after panel [default: evidence]
   -q, --quiet                          Only errors
       --threshold <THRESHOLD>          Sync-then-send threshold for the attacker view (seconds) [default: 10]
-      --nym                            Route sync and broadcast through two Nym SOCKS5 clients with different exits (fail closed)
+      --direct                         Opt OUT of Nym: connect directly (the server then sees your IP on both paths). Default: sync and broadcast go through two Nym SOCKS5 clients with different exits, fail closed
       --nym-sync <NYM_SYNC>            Nym SOCKS5 client used for SYNC [default: 127.0.0.1:1080]
       --nym-broadcast <NYM_BROADCAST>  Nym SOCKS5 client used for BROADCAST (must be a different client/exit than sync) [default: 127.0.0.1:1081]
   -h, --help                           Print help
@@ -297,7 +298,7 @@ Options:
       --wallet <WALLET>              Wallet ghost_pay may use (fixed at startup; the agent can't choose another)
       --identity <IDENTITY>          Its age identity file (path only; passed to zcash-devtool)
       --devtool <DEVTOOL>            zcash-devtool binary for ghost_pay
-      --nym                          Make ghost_pay / ghost_verify / ghost_ip / ghost_doctor use the Nym clients
+      --direct                       Opt OUT of Nym for the tools (default: Nym, like the CLI)
   -h, --help                         Print help
 ```
 

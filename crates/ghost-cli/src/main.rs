@@ -99,9 +99,12 @@ enum Cmd {
     Verify {
         txid: String,
         /// Unified full viewing key (uviewtest1…): decrypt and show what this tx paid to that wallet.
-        /// Read-only; never a spending key.
-        #[arg(long)]
+        /// Read-only; never a spending key. Prefer --ufvk-file or GHOST_UFVK (argv is visible to other local users).
+        #[arg(long, env = "GHOST_UFVK", hide_env_values = true)]
         ufvk: Option<String>,
+        /// Read the UFVK from this file instead
+        #[arg(long, conflicts_with = "ufvk")]
+        ufvk_file: Option<PathBuf>,
         #[arg(long, default_value = DEFAULT_SERVER)]
         server: String,
         /// Ask through the Nym BROADCAST client (asking from your own IP, or via the sync exit, links you to the tx)
@@ -152,8 +155,12 @@ struct UpArgs {
 
 #[derive(clap::Args, Clone)]
 pub(crate) struct NymArgs {
-    /// Route sync and broadcast through two Nym SOCKS5 clients with different exits (fail closed)
+    /// Opt OUT of Nym: connect directly (the server then sees your IP on both paths).
+    /// Default: sync and broadcast go through two Nym SOCKS5 clients with different exits, fail closed.
     #[arg(long)]
+    direct: bool,
+    /// (default; kept for compatibility)
+    #[arg(long, hide = true, conflicts_with = "direct")]
     nym: bool,
     /// Nym SOCKS5 client used for SYNC
     #[arg(long, default_value = "127.0.0.1:1080")]
@@ -164,8 +171,13 @@ pub(crate) struct NymArgs {
 }
 
 impl NymArgs {
+    /// Nym is on unless `--direct` was given.
+    pub(crate) fn on(&self) -> bool {
+        !self.direct
+    }
+
     fn transports(&self, sync: Upstream, bcast: Upstream) -> Result<(Transport, Transport), Fail> {
-        if !self.nym {
+        if !self.on() {
             return Ok((Transport::direct(sync, "direct"), Transport::direct(bcast, "direct")));
         }
         if self.nym_sync == self.nym_broadcast {
@@ -176,7 +188,7 @@ impl NymArgs {
 
     /// Fail closed: refuse to start with --nym unless both clients are listening on different exits.
     async fn require_up(&self) -> Result<(), Fail> {
-        if self.nym {
+        if self.on() {
             let ip = |id| nym_exit(id).and_then(|s| s.split('(').nth(1).map(|x| x.trim_end_matches(')').to_string()));
             if let (Some(a), Some(b)) = (ip("ghost-sync"), ip("ghost-bcast")) {
                 if a == b {
@@ -188,10 +200,10 @@ impl NymArgs {
             }
         }
         for a in [self.nym_sync, self.nym_broadcast] {
-            if self.nym && tokio::net::TcpStream::connect(a).await.is_err() {
+            if self.on() && tokio::net::TcpStream::connect(a).await.is_err() {
                 return Err(Fail::runtime(
                     format!("Nym SOCKS5 client {a} is not running (refusing to fall back to direct)"),
-                    "start them with scripts/nym_setup.sh up",
+                    "start Nym with scripts/nym_setup.sh up (or pass --direct: the server will see your IP)",
                 ));
             }
         }
@@ -262,7 +274,13 @@ async fn run(cli: Cli) -> Result<u8, Fail> {
             attack_report(&before, &after, threshold, out, nym_note.as_deref(), nym_events.as_deref(), cli.json)
         }
         Cmd::Report { before, after, out, .. } => shadecheck_report(&before, &after, out, cli.json),
-        Cmd::Verify { txid, server, nym, ufvk } => verify(&txid, &server, nym, ufvk.as_deref(), cli.json).await,
+        Cmd::Verify { txid, server, nym, ufvk, ufvk_file } => {
+            let ufvk = match ufvk_file {
+                Some(f) => Some(std::fs::read_to_string(&f).map_err(|e| Fail::usage(format!("{}: {e}", f.display()), "pass a readable file with the uviewtest1… key"))?.trim().to_string()),
+                None => ufvk,
+            };
+            verify(&txid, &server, nym, ufvk.as_deref(), cli.json).await
+        }
         Cmd::Doctor { server, listen, nym } => doctor(&server, listen, nym, cli.json).await,
     }
 }
@@ -302,7 +320,7 @@ async fn up(a: UpArgs, json: bool) -> Result<u8, Fail> {
         EventLog::open(&p).map_err(|e| Fail::runtime(format!("cannot open event log {}: {e:#}", p.display()), "pass --event-log <path> or --no-event-log"))?
     });
     let broadcaster = FreshConnBroadcaster { transport: bcast, events: events.clone() };
-    let scheduler = Scheduler::new(open_queue()?, policy, broadcaster, if a.nym.nym { "nym" } else { "direct" });
+    let scheduler = Scheduler::new(open_queue()?, policy, broadcaster, if a.nym.on() { "nym" } else { "direct" });
     // One cache per upstream server: blocks from different chains must never mix.
     let cache_name = format!("blocks-{}-{}.sqlite", upstream.host.replace(|c: char| !c.is_ascii_alphanumeric(), "_"), upstream.port);
     let cache = BlockCache::open(&data_dir().join(cache_name))
@@ -316,7 +334,7 @@ async fn up(a: UpArgs, json: bool) -> Result<u8, Fail> {
 
     if json {
         println!("{}", json!({"schema_version": 1, "ok": true, "listen": listen.to_string(), "sync_upstream": upstream.uri(),
-            "broadcast_upstream": bcast_upstream.uri(), "nym": a.nym.nym, "profile": a.profile,
+            "broadcast_upstream": bcast_upstream.uri(), "nym": a.nym.on(), "profile": a.profile,
             "policy": policy, "send_mode": a.send_mode, "resumed_pending": resumed, "held_nym_only": held}));
     } else {
         println!("👻 Ghost Layer up on {listen}");
@@ -329,10 +347,10 @@ async fn up(a: UpArgs, json: bool) -> Result<u8, Fail> {
         println!("   ✅ grid-aligned GetBlockRange/GetBlock: upstream sees 1152-block cells (nym-swizzle-zcash rule)");
         println!("   ⚠️  still visible to the server: tree-state/subtree heights, pool-type filter, transparent-address queries");
         println!("   ✅ wallet headers stripped");
-        if a.nym.nym {
+        if a.nym.on() {
             println!("   ✅ Nym mixnet: sync via {} / broadcast via {} (different exits; fail closed)", a.nym.nym_sync, a.nym.nym_broadcast);
         } else {
-            println!("   ⚠️  not hidden in direct mode: your IP (same on both paths) — use --nym");
+            println!("   ⚠️  --direct: your IP is visible to the server on both paths (drop --direct to use Nym)");
         }
         if resumed > 0 {
             println!("   ↻ resumed {resumed} queued broadcast(s) from the previous run (fresh random delays)");
@@ -517,7 +535,7 @@ pub(crate) fn mask_ip(ip: &str) -> String {
 async fn ip(n: NymArgs, show_real_ip: bool, json: bool) -> Result<u8, Fail> {
     let measure = |s| async move { ghost_transport::public_ip(s).await.map_err(|e| format!("{e:#}")) };
     let direct = measure(None).await;
-    let (sync, bcast) = if n.nym {
+    let (sync, bcast) = if n.on() {
         n.require_up().await?;
         (measure(Some(n.nym_sync)).await, measure(Some(n.nym_broadcast)).await)
     } else {
@@ -528,20 +546,20 @@ async fn ip(n: NymArgs, show_real_ip: bool, json: bool) -> Result<u8, Fail> {
     let own = |r: &Result<String, String>| if show_real_ip { show(r) } else { r.as_ref().map(|x| mask_ip(x)).unwrap_or_else(|e| format!("error: {e}")) };
     let unlinkable = matches!((&sync, &bcast, &direct), (Ok(s), Ok(b), Ok(d)) if s != b && s != d && b != d);
     if json {
-        let path = |r: &Result<String, String>| if n.nym { show(r) } else { own(r) };
-        println!("{}", json!({"schema_version": 1, "ok": sync.is_ok() && bcast.is_ok(), "nym": n.nym, "your_ip": own(&direct),
+        let path = |r: &Result<String, String>| if n.on() { show(r) } else { own(r) };
+        println!("{}", json!({"schema_version": 1, "ok": sync.is_ok() && bcast.is_ok(), "nym": n.on(), "your_ip": own(&direct),
             "sync_path_ip": path(&sync), "broadcast_path_ip": path(&bcast), "paths_unlinkable_by_ip": unlinkable,
             "sync_exit": nym_exit("ghost-sync"), "broadcast_exit": nym_exit("ghost-bcast")}));
     } else {
         println!("your real IP            {}", own(&direct));
-        if n.nym {
+        if n.on() {
             println!("server sees on SYNC      {}  via Nym {} [{}]", show(&sync), n.nym_sync, nym_exit("ghost-sync").unwrap_or_default());
             println!("server sees on BROADCAST {}  via Nym {} [{}]", show(&bcast), n.nym_broadcast, nym_exit("ghost-bcast").unwrap_or_default());
             println!("{}", if unlinkable { "✅ three different IPs: the server cannot link sync and broadcast by IP" } else { "❌ IPs overlap — check your Nym clients" });
         } else {
             println!("server sees on SYNC      {}  (direct = your IP)", own(&sync));
             println!("server sees on BROADCAST {}  (direct = your IP)", own(&bcast));
-            println!("⚠️  same IP on both paths → linkable by IP. Use `ghost ip --nym` after scripts/nym_setup.sh");
+            println!("⚠️  same IP on both paths → linkable by IP. Drop --direct (Nym is the default) after scripts/nym_setup.sh up");
         }
     }
     Ok(if sync.is_ok() && bcast.is_ok() { 0 } else { 1 })
@@ -602,7 +620,7 @@ pub(crate) async fn tx_state(txid: &str, server: &str, nym: &NymArgs) -> Result<
     let upstream = parse_upstream(server)?;
     nym.require_up().await?;
     // Via the BROADCAST exit (which already sent this tx): asking through the sync exit would link them.
-    let t = if nym.nym { Transport::nym(upstream.clone(), "nym-broadcast", nym.nym_broadcast) } else { Transport::direct(upstream.clone(), "direct") };
+    let t = if nym.on() { Transport::nym(upstream.clone(), "nym-broadcast", nym.nym_broadcast) } else { Transport::direct(upstream.clone(), "direct") };
     let mut c = t
         .fresh()
         .await
@@ -626,6 +644,13 @@ pub(crate) async fn tx_state(txid: &str, server: &str, nym: &NymArgs) -> Result<
         }
         Err(s) => return Err(Fail::runtime(format!("GetTransaction: {s}"), "retry; the server may be busy")),
     };
+    // Integrity: the server's bytes must hash to the txid we asked for (ZIP 244), or we reject them.
+    if !raw.is_empty() {
+        let got = ghost_core::broadcast::txid_of(&raw).map_err(|e| Fail::runtime(format!("server returned an unparseable tx: {e:#}"), "try another --server"))?;
+        if got != txid.to_ascii_lowercase() {
+            return Err(Fail::runtime(format!("server returned tx {got}, not {txid}: rejecting"), "the server may be faulty or malicious; try another --server"));
+        }
+    }
     Ok(TxState { state, height, confs, tip, raw })
 }
 
@@ -682,7 +707,7 @@ async fn doctor(server: &str, listen: SocketAddr, nym: NymArgs, json: bool) -> R
     let mut add = |name, ok, detail: String| checks.push(Check { name, ok, detail });
 
     // In --nym mode the upstream is only ever contacted through the mixnet.
-    let probe = if nym.nym { Transport::nym(upstream.clone(), "nym-sync", nym.nym_sync) } else { Transport::direct(upstream.clone(), "direct") };
+    let probe = if nym.on() { Transport::nym(upstream.clone(), "nym-sync", nym.nym_sync) } else { Transport::direct(upstream.clone(), "direct") };
     match probe.fresh().await {
         Err(e) => add("upstream reachable", false, format!("{} via {}: {e:#}", upstream.uri(), probe.label)),
         Ok(conn) => {
@@ -726,11 +751,11 @@ async fn doctor(server: &str, listen: SocketAddr, nym: NymArgs, json: bool) -> R
     let writable = std::fs::create_dir_all(&dir).and_then(|_| std::fs::write(&probe, b"ok")).and_then(|_| std::fs::remove_file(&probe));
     add("storage writable", writable.is_ok(), format!("{} {}", dir.display(), writable.err().map(|e| e.to_string()).unwrap_or_default()));
 
-    if nym.nym {
+    if nym.on() {
         for (name, addr, id) in [("nym sync client", nym.nym_sync, "ghost-sync"), ("nym broadcast client", nym.nym_broadcast, "ghost-bcast")] {
             match ghost_transport::public_ip(Some(addr)).await {
                 Ok(ip) => add(name, true, format!("{addr} up, exit IP {ip} [{}]", nym_exit(id).unwrap_or_default())),
-                Err(e) => add(name, false, format!("{addr}: {e:#} → scripts/nym_setup.sh up")),
+                Err(e) => add(name, false, format!("{addr}: {e:#} → this exit may be degraded: scripts/nym_setup.sh up --reinit picks fresh exits")),
             }
         }
     }

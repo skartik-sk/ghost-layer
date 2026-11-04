@@ -63,10 +63,10 @@ start_observer "$RUN/before/events.jsonl"
 payments "127.0.0.1:$OBS_PORT" before
 stop "$OBS_PID"
 
-# 2. after: wallet → Ghost Layer (direct) → observer → backend
+# 2. after: wallet → Ghost Layer (--direct: Nym exits cannot reach a local regtest node) → observer → backend
 start_observer "$RUN/after/events.jsonl"
 GH="$(mktemp -d)"
-GHOST_HOME="$GH" "$GHOST" up --server "127.0.0.1:$OBS_PORT" --profile demo >"$RUN/after/gateway.out" 2>"$RUN/after/gateway.log" &
+GHOST_HOME="$GH" "$GHOST" up --direct --server "127.0.0.1:$OBS_PORT" --profile demo >"$RUN/after/gateway.out" 2>"$RUN/after/gateway.log" &
 GW_PID=$!; PIDS+=("$GW_PID")
 wait_port 9067 || fail "ghost up did not start (see $RUN/after/gateway.log)"
 ok "ghost-gateway up in front of the observer"
