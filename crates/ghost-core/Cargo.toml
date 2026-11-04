@@ -14,3 +14,5 @@ anyhow.workspace = true
 hex.workspace = true
 zcash_primitives.workspace = true
 zcash_protocol.workspace = true
+nym-swizzle-zcash.workspace = true
+prost.workspace = true

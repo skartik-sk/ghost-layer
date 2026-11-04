@@ -1,0 +1,22 @@
+2026-11-04T11:48:44.935399Z  INFO upstream: sync connection opened conn=1 transport="direct" server=https://testnet.zec.rocks:443
+2026-11-04T11:48:50.280424Z  INFO upstream:  conn=1 path="sync" method="GetLatestBlock"
+2026-11-04T11:48:51.026958Z  INFO upstream: height=4579999 conn=1 path="sync" method="GetTreeState"
+2026-11-04T11:48:51.531553Z  INFO upstream: start_index=0 max=0 conn=1 path="sync" method="GetSubtreeRoots"
+2026-11-04T11:48:51.743287Z  INFO upstream: start_index=0 max=0 conn=1 path="sync" method="GetSubtreeRoots"
+2026-11-04T11:48:51.899255Z  INFO upstream: start_index=0 max=0 conn=1 path="sync" method="GetSubtreeRoots"
+2026-11-04T11:48:52.062278Z  INFO upstream:  conn=1 path="sync" method="GetLatestBlock"
+2026-11-04T11:48:52.326623Z  INFO upstream:  conn=1 path="sync" method="GetAddressUtxosStream"
+2026-11-04T11:48:52.939750Z  INFO grid: planned grid-aligned fetch wallet_range=4580000..=4581946 emitted=4578048..=4581946 cells=4 spacing=2304
+2026-11-04T11:48:52.940383Z  INFO upstream: range=4578048..=4579199 (grid cell) conn=1 path="sync" method="GetBlockRange" aligned=true
+2026-11-04T11:48:54.480822Z  INFO upstream: range=4579200..=4580351 (grid cell) conn=1 path="sync" method="GetBlockRange" aligned=true
+2026-11-04T11:48:55.364240Z  INFO upstream: range=4580352..=4581503 (grid cell) conn=1 path="sync" method="GetBlockRange" aligned=true
+2026-11-04T11:48:56.680530Z  INFO upstream: range=4581504..=4581946 (grid cell) conn=1 path="sync" method="GetBlockRange" aligned=true
+2026-11-04T11:48:57.652268Z  INFO upstream: height=4579999 conn=1 path="sync" method="GetTreeState"
+2026-11-04T11:48:59.301266Z  INFO upstream: start_index=0 max=0 conn=1 path="sync" method="GetSubtreeRoots"
+2026-11-04T11:48:59.618513Z  INFO upstream: start_index=0 max=0 conn=1 path="sync" method="GetSubtreeRoots"
+2026-11-04T11:48:59.824792Z  INFO upstream: start_index=0 max=0 conn=1 path="sync" method="GetSubtreeRoots"
+2026-11-04T11:49:00.079494Z  INFO upstream:  conn=1 path="sync" method="GetLatestBlock"
+2026-11-04T11:49:00.307442Z  INFO upstream:  conn=1 path="sync" method="GetAddressUtxosStream"
+2026-11-04T11:49:00.544407Z  INFO grid: planned grid-aligned fetch wallet_range=4581921..=4581947 emitted=4581504..=4581947 cells=1 spacing=1152
+2026-11-04T11:49:00.544725Z  INFO upstream: range=4581504..=4581947 (grid cell) conn=1 path="sync" method="GetBlockRange" aligned=true
+2026-11-04T11:49:01.198049Z  INFO upstream: height=4581920 conn=1 path="sync" method="GetTreeState"

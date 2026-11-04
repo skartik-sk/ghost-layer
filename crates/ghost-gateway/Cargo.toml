@@ -11,3 +11,6 @@ futures.workspace = true
 tracing.workspace = true
 anyhow.workspace = true
 ghost-core = { path = "../ghost-core" }
+tokio.workspace = true
+tokio-stream.workspace = true
+prost.workspace = true

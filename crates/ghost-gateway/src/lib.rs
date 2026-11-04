@@ -7,6 +7,10 @@
 use std::net::SocketAddr;
 use std::pin::Pin;
 use std::sync::Arc;
+use std::sync::atomic::{AtomicU64, Ordering};
+
+use ghost_core::grid::{self, BlockCache};
+use prost::Message;
 
 use ghost_core::broadcast::{Broadcaster, Outcome, Scheduler, Sent};
 
@@ -44,7 +48,8 @@ impl Broadcaster for FreshConnBroadcaster {
             transport: self.transport.label.to_string(),
             endpoint: self.transport.upstream.uri(),
             error_code: resp.error_code,
-            error_message: resp.error_message,
+            // Upstream text is untrusted: strip control chars (terminal escape injection).
+            error_message: resp.error_message.chars().filter(|c| !c.is_control()).take(500).collect(),
         })
     }
 }
@@ -54,6 +59,104 @@ pub struct Gateway {
     sync_conn_id: u64,
     scheduler: Arc<Scheduler<FreshConnBroadcaster>>,
     send_mode: SendMode,
+    grid: Arc<GridFetcher>,
+}
+
+/// Fetches whole grid cells over the SYNC connection and serves wallets from them.
+struct GridFetcher {
+    sync: Client,
+    conn_id: u64,
+    cache: BlockCache,
+    tip: AtomicU64,
+}
+
+impl GridFetcher {
+    async fn refresh_tip(&self) -> Result<u64, Status> {
+        info!(target: "upstream", conn = self.conn_id, path = "sync", method = "GetLatestBlock", "tip refresh for grid planner");
+        let h = self.sync.clone().get_latest_block(ChainSpec {}).await?.into_inner().height;
+        self.tip.store(h, Ordering::Relaxed);
+        Ok(h)
+    }
+
+    /// Returns cell blocks (height, encoded CompactBlock), from cache or one aligned upstream request.
+    async fn cell(&self, kind: &str, nullifiers: bool, pools: &[i32], cell: (u64, u64), tip: u64) -> Result<Vec<(u64, Vec<u8>)>, Status> {
+        let internal = |e: anyhow::Error| Status::internal(format!("ghost cache: {e:#}"));
+        if self.cache.has_cell(kind, cell, tip).map_err(internal)? {
+            info!(target: "grid", cell_start = cell.0, cell_end = cell.1, "cell served from cache (no upstream request)");
+            return self.cache.get(kind, cell.0, cell.1).map_err(internal);
+        }
+        let method = if nullifiers { "GetBlockRangeNullifiers" } else { "GetBlockRange" };
+        info!(target: "upstream", conn = self.conn_id, path = "sync", method, aligned = grid::is_aligned(cell.0, cell.1, tip),
+            "range={}..={} (grid cell)", cell.0, cell.1);
+        let req = BlockRange {
+            start: Some(BlockId { height: cell.0, hash: vec![] }),
+            end: Some(BlockId { height: cell.1, hash: vec![] }),
+            pool_types: pools.to_vec(),
+        };
+        let mut c = self.sync.clone();
+        let mut stream = if nullifiers {
+            #[allow(deprecated)]
+            c.get_block_range_nullifiers(req).await?.into_inner()
+        } else {
+            c.get_block_range(req).await?.into_inner()
+        };
+        let mut out = Vec::new();
+        while let Some(b) = stream.next().await {
+            let b = b?;
+            out.push((b.height, b.encode_to_vec()));
+        }
+        self.cache.put_cell(kind, cell, &out).map_err(internal)?;
+        Ok(out)
+    }
+
+    async fn range(self: Arc<Self>, msg: BlockRange, nullifiers: bool) -> Result<BoxStream<CompactBlock>, Status> {
+        let a = msg.start.as_ref().map(|b| b.height).unwrap_or_default();
+        let b = msg.end.as_ref().map(|b| b.height).unwrap_or_default();
+        let (lo, hi, descending) = if a <= b { (a, b, false) } else { (b, a, true) };
+        let mut tip = self.tip.load(Ordering::Relaxed);
+        if hi > tip {
+            tip = self.refresh_tip().await?;
+        }
+        if hi > tip {
+            return Err(Status::out_of_range(format!("requested height {hi} is above the chain tip {tip}")));
+        }
+        let plan = grid::plan(lo, hi, tip);
+        let mut pools = msg.pool_types.clone();
+        pools.sort();
+        let kind = format!("{}:{pools:?}", if nullifiers { "nf" } else { "cb" });
+        info!(target: "grid", wallet_range = %format!("{a}..={b}"), emitted = %format!("{}..={}", plan.emitted.0, plan.emitted.1),
+            cells = plan.cells.len(), spacing = plan.spacing, "planned grid-aligned fetch");
+
+        let (tx, rx) = tokio::sync::mpsc::channel::<Result<CompactBlock, Status>>(64);
+        tokio::spawn(async move {
+            let mut held = Vec::new(); // only used for descending requests
+            for cell in plan.cells {
+                match self.cell(&kind, nullifiers, &pools, cell, tip).await {
+                    Err(e) => {
+                        let _ = tx.send(Err(e)).await;
+                        return;
+                    }
+                    Ok(blocks) => {
+                        for (h, data) in blocks.into_iter().filter(|(h, _)| (lo..=hi).contains(h)) {
+                            let blk = CompactBlock::decode(data.as_slice())
+                                .map_err(|e| Status::internal(format!("ghost cache decode at {h}: {e}")));
+                            if descending {
+                                held.push(blk);
+                            } else if tx.send(blk).await.is_err() {
+                                return; // wallet went away
+                            }
+                        }
+                    }
+                }
+            }
+            for blk in held.into_iter().rev() {
+                if tx.send(blk).await.is_err() {
+                    return;
+                }
+            }
+        });
+        Ok(Box::pin(tokio_stream::wrappers::ReceiverStream::new(rx)))
+    }
 }
 
 impl Gateway {
@@ -62,10 +165,12 @@ impl Gateway {
         sync: &Transport,
         scheduler: Arc<Scheduler<FreshConnBroadcaster>>,
         send_mode: SendMode,
+        cache: BlockCache,
     ) -> anyhow::Result<Self> {
         let conn = sync.fresh().await?;
         info!(target: "upstream", conn = conn.id, transport = sync.label, server = %sync.upstream.uri(), "sync connection opened");
-        Ok(Self { sync: conn.client, sync_conn_id: conn.id, scheduler, send_mode })
+        let grid = Arc::new(GridFetcher { sync: conn.client.clone(), conn_id: conn.id, cache, tip: AtomicU64::new(0) });
+        Ok(Self { sync: conn.client, sync_conn_id: conn.id, scheduler, send_mode, grid })
     }
 
     fn client(&self) -> Client {
@@ -103,7 +208,11 @@ macro_rules! streaming {
 #[tonic::async_trait]
 impl CompactTxStreamer for Gateway {
     async fn get_latest_block(&self, r: Request<ChainSpec>) -> Result<Response<BlockId>, Status> {
-        unary!(self, r, get_latest_block, "GetLatestBlock")
+        let resp: Result<Response<BlockId>, Status> = unary!(self, r, get_latest_block, "GetLatestBlock");
+        if let Ok(b) = &resp {
+            self.grid.tip.store(b.get_ref().height, Ordering::Relaxed);
+        }
+        resp
     }
     async fn get_block(&self, r: Request<BlockId>) -> Result<Response<CompactBlock>, Status> {
         unary!(self, r, get_block, "GetBlock")
@@ -113,8 +222,9 @@ impl CompactTxStreamer for Gateway {
     }
 
     type GetBlockRangeStream = BoxStream<CompactBlock>;
+    /// Grid-aligned: upstream sees only whole grid cells; the wallet gets exactly its range.
     async fn get_block_range(&self, r: Request<BlockRange>) -> Result<Response<Self::GetBlockRangeStream>, Status> {
-        streaming!(self, r, get_block_range, "GetBlockRange")
+        Ok(Response::new(self.grid.clone().range(r.into_inner(), false).await?))
     }
 
     type GetBlockRangeNullifiersStream = BoxStream<CompactBlock>;
@@ -122,7 +232,7 @@ impl CompactTxStreamer for Gateway {
         &self,
         r: Request<BlockRange>,
     ) -> Result<Response<Self::GetBlockRangeNullifiersStream>, Status> {
-        streaming!(self, r, get_block_range_nullifiers, "GetBlockRangeNullifiers")
+        Ok(Response::new(self.grid.clone().range(r.into_inner(), true).await?))
     }
 
     async fn get_transaction(&self, r: Request<TxFilter>) -> Result<Response<RawTransaction>, Status> {

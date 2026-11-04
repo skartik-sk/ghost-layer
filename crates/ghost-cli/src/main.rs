@@ -7,6 +7,7 @@ use std::process::ExitCode;
 use std::sync::Arc;
 
 use ghost_core::broadcast::{Policy, Queue, Scheduler};
+use ghost_core::grid::BlockCache;
 use ghost_gateway::{FreshConnBroadcaster, SendMode};
 
 use clap::{Parser, Subcommand};
@@ -100,7 +101,7 @@ pub fn data_dir() -> PathBuf {
 
 fn main() -> ExitCode {
     let cli = Cli::parse();
-    let level = if cli.quiet { "error" } else if cli.verbose { "info" } else { "warn,upstream=info,broadcast=info" };
+    let level = if cli.quiet { "error" } else if cli.verbose { "info" } else { "warn,upstream=info,broadcast=info,grid=info" };
     tracing_subscriber::fmt()
         .with_ansi(std::io::IsTerminal::is_terminal(&std::io::stderr()))
         .with_env_filter(tracing_subscriber::EnvFilter::try_from_default_env().unwrap_or_else(|_| level.into()))
@@ -160,7 +161,9 @@ async fn up(a: UpArgs, json: bool) -> Result<u8, Fail> {
     let sync = Transport::direct(upstream.clone(), "direct");
     let broadcaster = FreshConnBroadcaster { transport: Transport::direct(bcast_upstream.clone(), "direct") };
     let scheduler = Scheduler::new(open_queue()?, policy, broadcaster);
-    let gw = ghost_gateway::Gateway::connect(&sync, scheduler.clone(), send_mode).await.map_err(|e| {
+    let cache = BlockCache::open(&data_dir().join("blocks.sqlite"))
+        .map_err(|e| Fail::runtime(format!("cannot open block cache: {e:#}"), "check that ~/.ghost-layer is writable"))?;
+    let gw = ghost_gateway::Gateway::connect(&sync, scheduler.clone(), send_mode, cache).await.map_err(|e| {
         Fail::runtime(format!("cannot reach upstream {}: {e:#}", upstream.uri()), "run `ghost doctor` to diagnose")
     })?;
     let resumed = scheduler
@@ -179,6 +182,7 @@ async fn up(a: UpArgs, json: bool) -> Result<u8, Fail> {
         println!("   ✅ broadcasts never share the sync connection");
         println!("   ✅ random broadcast delay {}–{} s ({} profile, send-mode {})",
             policy.min_delay.as_secs(), policy.max_delay.as_secs(), a.profile, a.send_mode);
+        println!("   ✅ grid-aligned sync: upstream sees only 1152-block cells (nym-swizzle-zcash rule)");
         println!("   ✅ wallet headers stripped");
         println!("   ⚠️  not hidden in direct mode: your IP (same on both paths) — use --nym");
         if resumed > 0 {
@@ -229,7 +233,7 @@ async fn status(json: bool) -> Result<u8, Fail> {
         }
         if r.status != "accepted" {
             if let Some(m) = &r.error_message {
-                println!("   upstream said: {m}");
+                println!("   upstream said: {}", m.chars().filter(|c| !c.is_control()).collect::<String>());
             }
         }
         for l in explorer_links(&r.txid) {
