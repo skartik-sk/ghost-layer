@@ -5,112 +5,235 @@
 <meta name="viewport" content="width=device-width, initial-scale=1">
 <title>Ghost Layer: unlink your Zcash payments from your wallet</title>
 <meta name="description" content="A local gateway that stops Zcash light-wallet servers from linking your payments to your wallet. Measured on real testnet payments: 100% to 0% linked.">
+<meta property="og:title" content="Ghost Layer">
+<meta property="og:description" content="Zcash hides the money. Ghost Layer hides the person. 100% → 0% payments linked, on real testnet runs.">
+<link rel="preconnect" href="https://fonts.googleapis.com"><link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+<link href="https://fonts.googleapis.com/css2?family=Geist:wght@300;400;500;600&family=Geist+Mono:wght@400;500&display=swap" rel="stylesheet">
 <style>
-:root{--canvas:#0D121A;--card:#151C27;--sunk:#10161F;--text:#E7ECF3;--muted:#97A1B2;--border:#263041;--accent:#2BB3A3;--accent-ink:#06201D;--accent-soft:#10302D;--bad:#FF8F84;--warn:#F2C15A;
---sans:system-ui,-apple-system,"Segoe UI",Roboto,"Helvetica Neue",Arial,sans-serif;--mono:ui-monospace,SFMono-Regular,Menlo,Consolas,monospace}
-@media (prefers-color-scheme: light){:root{--canvas:#EEF1F5;--card:#FFFFFF;--sunk:#F6F8FA;--text:#121826;--muted:#5B6475;--border:#DCE1E8;--accent:#0F766E;--accent-ink:#FFFFFF;--accent-soft:#E3F2EF;--bad:#B42318;--warn:#8A5A00}}
-*{box-sizing:border-box}html,body{margin:0}
-body{background:var(--canvas);color:var(--text);font-family:var(--sans);line-height:1.55;-webkit-font-smoothing:antialiased}
-a{color:var(--accent);text-underline-offset:3px}
-:focus-visible{outline:2px solid var(--accent);outline-offset:3px;border-radius:6px}
-.wrap{max-width:1120px;margin:0 auto;padding:0 20px}
-nav{display:flex;justify-content:space-between;align-items:center;padding:20px 0}
-nav b{font-size:18px}nav .links{display:flex;gap:20px;font-size:14px}nav .links a{color:var(--muted);text-decoration:none}nav .links a:hover{color:var(--text)}
-.hero{padding:72px 0 56px;display:grid;gap:28px}
-.hero h1{font-size:clamp(40px,6vw,72px);line-height:1.04;letter-spacing:-.03em;margin:0;max-width:16ch}
-.hero p{font-size:clamp(17px,2vw,21px);color:var(--muted);max-width:60ch;margin:0}
-.cta{display:flex;flex-wrap:wrap;gap:12px;align-items:center}
-.btn{display:inline-block;background:var(--accent);color:var(--accent-ink);font-weight:650;padding:12px 20px;border-radius:10px;text-decoration:none}
-.btn.ghost{background:transparent;color:var(--text);border:1px solid var(--border)}
-code.install{font-family:var(--mono);font-size:15px;background:var(--sunk);border:1px solid var(--border);padding:11px 16px;border-radius:10px}
-.stat{display:grid;grid-template-columns:repeat(3,minmax(0,1fr));gap:16px;margin:8px 0 72px}
-.stat div{background:var(--card);border:1px solid var(--border);border-radius:16px;padding:24px}
-.stat b{display:block;font-size:56px;line-height:1;letter-spacing:-.03em;font-variant-numeric:tabular-nums}
-.stat .bad{color:var(--bad)}.stat .good{color:var(--accent)}
-.stat span{color:var(--muted);font-size:15px}
-section{padding:56px 0;border-top:1px solid var(--border)}
-h2{font-size:clamp(28px,3.4vw,40px);letter-spacing:-.02em;margin:0 0 12px;line-height:1.15}
-.lede{color:var(--muted);font-size:18px;max-width:62ch;margin:0 0 32px}
-.grid3{display:grid;grid-template-columns:repeat(3,minmax(0,1fr));gap:16px}
-.grid4{display:grid;grid-template-columns:repeat(2,minmax(0,1fr));gap:16px}
-.card{background:var(--card);border:1px solid var(--border);border-radius:16px;padding:24px}
-.card h3{margin:0 0 6px;font-size:18px}.card p{margin:0;color:var(--muted)}
-ol.steps{counter-reset:s;list-style:none;padding:0;margin:0;display:grid;grid-template-columns:repeat(2,minmax(0,1fr));gap:16px}
-ol.steps li{counter-increment:s;background:var(--card);border:1px solid var(--border);border-radius:16px;padding:24px 24px 24px 72px;position:relative}
-ol.steps li::before{content:counter(s);position:absolute;left:24px;top:22px;width:32px;height:32px;border-radius:50%;background:var(--accent-soft);color:var(--accent);font-weight:700;display:grid;place-items:center}
-ol.steps b{display:block;font-size:17px;margin-bottom:4px}ol.steps span{color:var(--muted)}
-figure{margin:0}figure img{width:100%;height:auto;display:block;border-radius:14px;border:1px solid var(--border);background:var(--sunk)}
-figcaption{color:var(--muted);font-size:14px;margin-top:10px}
+:root{--bg:#06080C;--bg2:#0B0F16;--card:#0E131C;--line:rgba(255,255,255,.08);--text:#ECEFF4;--muted:#8A93A3;--dim:#5C6575;
+--teal:#3EE6C4;--blue:#7AA2FF;--violet:#B48CFF;--red:#FF8A80;--sans:"Geist",system-ui,-apple-system,"Segoe UI",sans-serif;--mono:"Geist Mono",ui-monospace,SFMono-Regular,Menlo,monospace}
+*{box-sizing:border-box}html,body{margin:0}html{scroll-behavior:smooth}
+body{background:var(--bg);color:var(--text);font-family:var(--sans);font-weight:400;line-height:1.55;-webkit-font-smoothing:antialiased;overflow-x:hidden}
+a{color:inherit}
+:focus-visible{outline:2px solid var(--teal);outline-offset:3px;border-radius:6px}
+.wrap{max-width:1200px;margin:0 auto;padding:0 24px}
+/* nav */
+nav{position:absolute;inset:0 0 auto 0;z-index:5}
+nav .wrap{display:flex;align-items:center;justify-content:space-between;height:88px}
+.logo{font-size:22px;font-weight:500;letter-spacing:-.01em;text-decoration:none;display:flex;align-items:center;gap:10px}
+.logo span{font-family:var(--mono);font-size:11px;color:var(--muted);border:1px solid var(--line);border-radius:6px;padding:2px 6px}
+.menu{display:flex;gap:34px;font-size:15px}.menu a{color:var(--muted);text-decoration:none}.menu a:hover{color:var(--text)}
+.pill{display:inline-flex;align-items:center;gap:8px;background:var(--text);color:#06080C;font-weight:500;font-size:15px;padding:10px 20px;border-radius:999px;text-decoration:none}
+.pill.dark{background:transparent;color:var(--text);border:1px solid var(--line)}
+/* hero */
+.hero{position:relative;min-height:100vh;display:flex;flex-direction:column;justify-content:flex-end;padding:140px 0 56px;overflow:hidden;
+  background:radial-gradient(1200px 600px at 75% 35%,rgba(122,162,255,.10),transparent 60%),radial-gradient(900px 500px at 85% 70%,rgba(62,230,196,.08),transparent 60%),var(--bg)}
+.hero::before{content:"";position:absolute;inset:0;background-image:linear-gradient(var(--line) 1px,transparent 1px),linear-gradient(90deg,var(--line) 1px,transparent 1px);background-size:96px 96px;
+  mask-image:radial-gradient(ellipse at 60% 40%,#000 20%,transparent 75%);opacity:.5;pointer-events:none}
+#net{position:absolute;inset:0;width:100%;height:100%;pointer-events:none}
+.hero .wrap{position:relative;z-index:2;width:100%}
+.eyebrow{font-family:var(--mono);font-size:14px;color:var(--muted);display:flex;align-items:center;gap:14px;margin:0 0 26px}
+.eyebrow::before{content:"";width:36px;height:1px;background:var(--muted)}
+h1{font-weight:300;font-size:clamp(48px,8.4vw,116px);line-height:.98;letter-spacing:-.045em;margin:0;max-width:13ch}
+.grad{background:linear-gradient(90deg,var(--teal),var(--blue) 45%,var(--violet));-webkit-background-clip:text;background-clip:text;color:transparent;font-weight:400}
+.sub{font-size:clamp(17px,1.6vw,20px);color:var(--muted);max-width:58ch;margin:30px 0 34px}
+.ctas{display:flex;flex-wrap:wrap;gap:12px;align-items:center}
+.cmd{font-family:var(--mono);font-size:14px;color:var(--text);background:rgba(255,255,255,.04);border:1px solid var(--line);border-radius:999px;padding:10px 18px}
+.cmd b{color:var(--teal);font-weight:500}
+.stats{display:flex;flex-wrap:wrap;gap:56px;margin-top:72px;padding-top:28px;border-top:1px solid var(--line)}
+.stats div{display:flex;flex-direction:column;gap:4px}
+.stats b{font-weight:300;font-size:46px;letter-spacing:-.03em;line-height:1;font-variant-numeric:tabular-nums}
+.stats .r{color:var(--red)}.stats .t{color:var(--teal)}
+.stats span{font-size:13px;color:var(--muted)}
+/* sections */
+section{padding:120px 0;border-top:1px solid var(--line)}
+.kicker{font-family:var(--mono);font-size:13px;color:var(--muted);margin:0 0 18px}
+h2{font-weight:300;font-size:clamp(36px,4.6vw,64px);letter-spacing:-.035em;line-height:1.02;margin:0 0 20px;max-width:18ch}
+.lede{color:var(--muted);font-size:18px;max-width:60ch;margin:0 0 56px}
+.grid{display:grid;grid-template-columns:repeat(4,minmax(0,1fr));border:1px solid var(--line);border-radius:18px;overflow:hidden}
+.grid > div{padding:32px 28px;border-right:1px solid var(--line);background:linear-gradient(180deg,rgba(255,255,255,.02),transparent)}
+.grid > div:last-child{border-right:0}
+.grid h3{font-weight:500;font-size:19px;margin:18px 0 8px;letter-spacing:-.01em}.grid p{margin:0;color:var(--muted);font-size:15px}
+.ic{width:40px;height:40px;border-radius:10px;border:1px solid var(--line);display:grid;place-items:center;color:var(--teal);background:rgba(62,230,196,.06)}
+/* process */
+.flow{display:grid;grid-template-columns:repeat(4,minmax(0,1fr));gap:0;position:relative}
+.flow li{list-style:none;padding:0 24px 0 0}
+.flow{counter-reset:s;padding:0;margin:0}
+.flow li::before{counter-increment:s;content:"0" counter(s);font-family:var(--mono);font-size:13px;color:var(--teal);display:block;margin-bottom:18px;padding-bottom:18px;border-bottom:1px solid var(--line)}
+.flow b{display:block;font-weight:500;font-size:19px;margin-bottom:8px;letter-spacing:-.01em}.flow span{color:var(--muted);font-size:15px}
+/* evidence */
+.ev{display:grid;grid-template-columns:1.1fr 1fr;gap:40px;align-items:start}
+table{width:100%;border-collapse:collapse;font-size:15px}
+th,td{text-align:left;padding:16px 12px;border-bottom:1px solid var(--line)}th{font-family:var(--mono);font-weight:400;font-size:12px;color:var(--muted)}
+td.r{color:var(--red)}td.t{color:var(--teal)}
+figure{margin:0}figure img{width:100%;height:auto;display:block;border-radius:16px;border:1px solid var(--line);background:var(--bg2)}
+figcaption{color:var(--muted);font-size:14px;margin-top:12px}
+.frame{border:1px solid var(--line);border-radius:20px;padding:10px;background:linear-gradient(180deg,rgba(255,255,255,.04),rgba(255,255,255,.01))}
 .shots{display:grid;grid-template-columns:repeat(2,minmax(0,1fr));gap:24px}
 .wide{grid-column:1/-1}
-table{width:100%;border-collapse:collapse;font-size:15px}td,th{text-align:left;padding:12px 10px;border-bottom:1px solid var(--border);vertical-align:top}th{color:var(--muted);font-weight:600}
-.mono{font-family:var(--mono);font-size:13.5px;word-break:break-all}
-footer{padding:40px 0 64px;border-top:1px solid var(--border);color:var(--muted);font-size:14px;display:flex;flex-wrap:wrap;gap:16px;justify-content:space-between}
-@media (max-width:820px){.grid3,.stat,.grid4,.shots,ol.steps{grid-template-columns:1fr}nav .links{display:none}}
+.tx{font-family:var(--mono);font-size:13px;color:var(--muted);word-break:break-all;margin-top:14px}
+.tx a{color:var(--teal)}
+/* agents */
+.agent{display:grid;grid-template-columns:1fr 1fr;gap:40px;align-items:center}
+pre{margin:0;font-family:var(--mono);font-size:14px;line-height:1.7;background:var(--bg2);border:1px solid var(--line);border-radius:16px;padding:24px;overflow-x:auto;color:#C9D1DE}
+pre .c{color:var(--dim)}pre .k{color:var(--teal)}
+ul.checks{list-style:none;padding:0;margin:0;display:flex;flex-direction:column;gap:14px}
+ul.checks li{display:flex;gap:12px;color:var(--muted)}ul.checks li::before{content:"✓";color:var(--teal)}
+/* cta */
+.end{text-align:center;padding:140px 0}
+.end h2{margin:0 auto 22px;max-width:16ch}
+.end .ctas{justify-content:center}
+footer{border-top:1px solid var(--line);padding:32px 0 48px;color:var(--dim);font-size:14px}
+footer .wrap{display:flex;flex-wrap:wrap;justify-content:space-between;gap:16px}footer a{color:var(--muted);text-decoration:none}
+@media (max-width:900px){.menu{display:none}.grid,.flow{grid-template-columns:1fr 1fr}.grid > div:nth-child(2){border-right:0}.grid > div{border-bottom:1px solid var(--line)}.ev,.agent,.shots{grid-template-columns:1fr}.flow{gap:32px}}
+@media (max-width:560px){.grid,.flow{grid-template-columns:1fr}.grid > div{border-right:0}.stats{gap:28px}.stats b{font-size:36px}nav .pill{display:none}}
 </style>
 </head>
 <body>
-<div class="wrap">
-<nav><b>👻 Ghost Layer</b><div class="links"><a href="#how">How it works</a><a href="#proof">Evidence</a><a href="#wallet">Ghost Wallet</a><a href="https://github.com/skartik-sk/ghost-layer">GitHub</a></div></nav>
+<nav><div class="wrap">
+<a class="logo" href="#">👻 Ghost Layer <span>v0.1</span></a>
+<div class="menu"><a href="#capabilities">Capabilities</a><a href="#process">How it works</a><a href="#evidence">Evidence</a><a href="#wallet">Ghost Wallet</a><a href="#agents">Agents</a></div>
+<a class="pill" href="https://github.com/skartik-sk/ghost-layer">View on GitHub</a>
+</div></nav>
 
 <header class="hero">
-<h1>Your Zcash payment is private. Is it still yours to hide?</h1>
-<p>Zcash hides who paid whom and how much. But the light-wallet server your wallet talks to sees your IP, and when your wallet syncs and then sends seconds later, it can tell the payment is yours. Ghost Layer is a local gateway that breaks that link. Your wallet doesn’t change.</p>
-<div class="cta"><a class="btn" href="https://github.com/skartik-sk/ghost-layer">View on GitHub</a><a class="btn ghost" href="https://crates.io/crates/ghost-layer">crates.io</a><code class="install">cargo install ghost-layer</code></div>
+<canvas id="net" aria-hidden="true"></canvas>
+<div class="wrap">
+<p class="eyebrow">Network privacy for Zcash light wallets</p>
+<h1>Zcash hides the money. <span class="grad">We hide the person.</span></h1>
+<p class="sub">Your light-wallet server sees your IP, and when your wallet syncs then sends seconds later, it knows the payment is yours. Ghost Layer is a local gateway that breaks that link, with no changes to your wallet.</p>
+<div class="ctas"><a class="pill" href="https://github.com/skartik-sk/ghost-layer">Get Ghost Layer</a><a class="pill dark" href="#evidence">See the evidence</a><span class="cmd"><b>$</b> cargo install ghost-layer</span></div>
+<div class="stats">
+<div><b class="r">100%</b><span>payments linked without it</span></div>
+<div><b class="t">0%</b><span>with Ghost Layer</span></div>
+<div><b class="t">0%</b><span>over Nym, even by IP</span></div>
+<div><b>15+</b><span>real testnet payments, all mined</span></div>
+</div>
+</div>
 </header>
 
-<div class="stat" aria-label="Measured results">
-<div><b class="bad">100%</b><span>of payments a curious server could link to the wallet, without Ghost Layer</span></div>
-<div><b class="good">0%</b><span>with Ghost Layer, on the same real payments</span></div>
-<div><b class="good">0%</b><span>over Nym on public testnet, even by IP address</span></div>
+<section id="capabilities"><div class="wrap">
+<p class="kicker">Capabilities</p>
+<h2>Four leaks closed, between your wallet and the server</h2>
+<p class="lede">Zcash already shields sender, receiver, amount and memo. Ghost Layer protects everything around the payment that the server can still observe.</p>
+<div class="grid">
+<div><div class="ic">⇄</div><h3>Split broadcast</h3><p>Every payment leaves on a brand-new connection, never the one your wallet synced on.</p></div>
+<div><div class="ic">◷</div><h3>Random delay</h3><p>Payments wait a random 10–40 s (minutes in privacy mode), restart-safe and sent exactly once.</p></div>
+<div><div class="ic">▦</div><h3>Grid-aligned sync</h3><p>The server only sees whole 1152-block cells, Nym’s network-wide rule, not your exact range.</p></div>
+<div><div class="ic">◎</div><h3>Nym by default</h3><p>Sync and send exit through two different Nym nodes. If Nym is down, Ghost stops instead of leaking.</p></div>
 </div>
-</div>
+</div></section>
 
-<section id="how"><div class="wrap">
+<section id="process"><div class="wrap">
+<p class="kicker">How it works</p>
 <h2>What happens when you send</h2>
-<p class="lede">Four things change between your wallet and the server. None of them need your keys.</p>
-<ol class="steps">
-<li><b>Sync in whole grid cells</b><span>The server only sees 1152-block cells (Nym’s network-wide rule), the same as every other wallet in that cell.</span></li>
-<li><b>Sign on your machine</b><span>Your wallet signs the payment. Ghost Layer never sees seeds or spending keys.</span></li>
-<li><b>Wait a random delay</b><span>The payment is held for a random 10–40 seconds (or minutes, in privacy mode), so it can’t be timed against your sync.</span></li>
-<li><b>Broadcast on a fresh connection</b><span>A brand-new connection, never the sync one, through a different Nym exit. Nym is on by default and fails closed.</span></li>
+<p class="lede">Point any lightwalletd-compatible wallet at 127.0.0.1:9067, or send with one command. Your keys never leave your wallet.</p>
+<ol class="flow">
+<li><b>Sync in grid cells</b><span>Your wallet catches up through one Nym exit, in cells shared with every other wallet.</span></li>
+<li><b>Sign locally</b><span>Your wallet signs the payment on your machine. Ghost only relays bytes.</span></li>
+<li><b>Hold a random delay</b><span>The payment can’t be timed against your sync.</span></li>
+<li><b>Broadcast fresh</b><span>A brand-new connection through a different exit. The server sees two unrelated strangers.</span></li>
 </ol>
 </div></section>
 
-<section id="proof"><div class="wrap">
-<h2>Measured on real payments</h2>
-<p class="lede">We played the nosy server: every connection, timestamp and block range it could log, then tried to link each payment to a wallet.</p>
+<section id="evidence"><div class="wrap">
+<p class="kicker">Evidence</p>
+<h2>Measured on real payments, not promised</h2>
+<p class="lede">We played the curious server: we logged every connection, timestamp and block range it could see, then tried to link each payment back to a wallet.</p>
+<div class="ev">
 <table>
-<tr><th>Heuristic</th><th>Without Ghost Layer</th><th>With Ghost Layer</th><th>+ Nym on testnet</th></tr>
-<tr><td>Sent seconds after sync</td><td>5 / 5 linked</td><td>0 / 5</td><td>0 / 5</td></tr>
-<tr><td>Sessions chained by block ranges</td><td>4 / 5</td><td>0 / 5</td><td>0 / 5</td></tr>
-<tr><td>Same IP for sync and send</td><td>5 / 5</td><td>5 / 5 (no Nym)</td><td>0 / 5</td></tr>
-<tr><td>Median time from tip to send</td><td>3.0 s</td><td>22.4 s</td><td>32.4 s</td></tr>
+<tr><th>Heuristic</th><th>Without</th><th>With Ghost</th><th>+ Nym</th></tr>
+<tr><td>Sent seconds after sync</td><td class="r">5 / 5</td><td class="t">0 / 5</td><td class="t">0 / 5</td></tr>
+<tr><td>Sessions chained by ranges</td><td class="r">4 / 5</td><td class="t">0 / 5</td><td class="t">0 / 5</td></tr>
+<tr><td>Same IP for sync and send</td><td class="r">5 / 5</td><td>5 / 5</td><td class="t">0 / 5</td></tr>
+<tr><td>Median time, tip to send</td><td>3.0 s</td><td>22.4 s</td><td>32.4 s</td></tr>
 </table>
-<div class="shots" style="margin-top:32px">
-<figure class="wide"><img src="assets/explorer-after-tx.png" alt="Zcash testnet explorer: our shielded version 6 transaction in block 4582118" loading="lazy"><figcaption>A real shielded NU7 payment sent through Ghost Layer and Nym. <a href="https://testnet.zcashexplorer.app/transactions/09f0f0b01942a658197f65563a977c66fc19f8823268b0e547470e022bd3ce69">Open it in the explorer</a>.</figcaption></figure>
+<figure class="frame"><img src="assets/explorer-after-tx.png" alt="Zcash testnet explorer: our shielded version 6 transaction in block 4582118" loading="lazy">
+<figcaption>A real shielded NU7 payment sent through Ghost Layer and Nym.</figcaption>
+<p class="tx"><a href="https://testnet.zcashexplorer.app/transactions/09f0f0b01942a658197f65563a977c66fc19f8823268b0e547470e022bd3ce69">09f0f0b01942a658197f65563a977c66fc19f8823268b0e547470e022bd3ce69</a></p></figure>
 </div>
 </div></section>
 
 <section id="wallet"><div class="wrap">
-<h2>Ghost Wallet</h2>
-<p class="lede">A small local app built on the Ghost Layer crates: send privately, prove one payment, and watch exactly what the server can see.</p>
+<p class="kicker">Ghost Wallet</p>
+<h2>An app built on Ghost Layer</h2>
+<p class="lede">Send privately, prove one payment, and watch exactly what the server can see. It runs on your machine and talks to your own wallet.</p>
 <div class="shots">
-<figure><img src="assets/wallet-v2-pay.png" alt="Ghost Wallet Pay tab with the five steps of what happens when you send" loading="lazy"><figcaption>Pay: address, amount, Send privately.</figcaption></figure>
-<figure><img src="assets/wallet-proof-verify.png" alt="Ghost Wallet Proof tab showing a valid ZecProof" loading="lazy"><figcaption>ZecProof: prove one payment, checked against the chain.</figcaption></figure>
-<figure class="wide"><img src="assets/wallet-v2-live.png" alt="Ghost Wallet live view: 100% to 0% linked, attacker view not linked, broadcast queue, aligned sync grid" loading="lazy"><figcaption>What the server sees, live from the real queue and event log.</figcaption></figure>
+<figure class="frame wide"><img src="assets/wallet-v2-live.png" alt="Ghost Wallet: what the server sees, with 100% to 0% linked and every payment not linked" loading="lazy"><figcaption>What the server sees, live from Ghost’s real queue and event log.</figcaption></figure>
+<figure class="frame"><img src="assets/wallet-v2-pay.png" alt="Ghost Wallet Pay tab" loading="lazy"><figcaption>Pay: address, amount, Send privately.</figcaption></figure>
+<figure class="frame"><img src="assets/wallet-proof-verify.png" alt="Ghost Wallet: a valid ZecProof" loading="lazy"><figcaption>ZecProof: prove one payment, checked against the chain.</figcaption></figure>
 </div>
 </div></section>
 
-<section><div class="wrap">
-<h2>Built to be used, and checked</h2>
-<div class="grid3">
-<div class="card"><h3>One command</h3><p><span class="mono">ghost pay --wallet ./w --to utest1… --amount 0.001</span> syncs, sends, waits and verifies.</p></div>
-<div class="card"><h3>For AI agents</h3><p>An MCP server with read-only tools, llms.txt, and a stable JSON contract tested against real output.</p></div>
-<div class="card"><h3>Honest limits</h3><p>The chain still shows that a payment happened; your ISP sees you use Nym. <a href="https://github.com/skartik-sk/ghost-layer/blob/main/PRIVACY.md">Read the privacy note</a>.</p></div>
+<section id="agents"><div class="wrap">
+<div class="agent">
+<div>
+<p class="kicker">For developers and agents</p>
+<h2>A CLI, five crates and an MCP server</h2>
+<ul class="checks">
+<li>Published on crates.io: ghost-layer, -core, -transport, -gateway, -attacker</li>
+<li>Stable JSON output, validated against real runs in CI tests</li>
+<li>MCP server with read-only tools; payments only with caps you set</li>
+<li>llms.txt and AGENTS.md so coding agents write current NU7 code</li>
+</ul>
+</div>
+<pre><span class="c"># one command: sync, send, wait, verify</span>
+<span class="k">ghost pay</span> --wallet ./w --identity ./w.age \
+  --to utest1… --amount 0.001
+
+<span class="c"># prove one payment, reveal nothing else</span>
+<span class="k">ghost proof create</span> --ufvk-file me.ufvk --txid …
+<span class="k">ghost proof verify</span> zecproof1…
+
+<span class="c"># ask your agent: "what's my ghost status?"</span>
+<span class="k">ghost mcp</span></pre>
 </div>
 </div></section>
 
-<div class="wrap"><footer><span>Ghost Layer · Free Society Hack 2026 · MIT</span><span><a href="https://github.com/skartik-sk/ghost-layer">GitHub</a> · <a href="https://crates.io/crates/ghost-layer">crates.io</a> · <a href="https://github.com/skartik-sk/ghost-layer/tree/main/evidence">Evidence</a></span></footer></div>
+<section class="end"><div class="wrap">
+<h2>Keep the payment. <span class="grad">Lose the trail.</span></h2>
+<div class="ctas"><a class="pill" href="https://github.com/skartik-sk/ghost-layer">View on GitHub</a><a class="pill dark" href="https://crates.io/crates/ghost-layer">crates.io</a><a class="pill dark" href="https://github.com/skartik-sk/ghost-layer/blob/main/PRIVACY.md">Privacy note</a></div>
+</div></section>
+
+<footer><div class="wrap"><span>Ghost Layer · Free Society Hack 2026 · MIT · Zcash testnet (NU7)</span><span><a href="https://github.com/skartik-sk/ghost-layer/tree/main/evidence">Evidence</a> · <a href="https://github.com/skartik-sk/ghost-layer">GitHub</a> · <a href="https://crates.io/crates/ghost-layer">crates.io</a></span></div></footer>
+
+<script>
+/* Hero: packets leave the wallet, scatter through mix nodes, and exit as two unrelated streams. */
+(function(){
+  var c=document.getElementById('net'); if(!c||!c.getContext) return;
+  var x=c.getContext('2d'), W=0, H=0, D=Math.min(window.devicePixelRatio||1,2), nodes=[], pk=[];
+  var still=window.matchMedia&&matchMedia('(prefers-reduced-motion: reduce)').matches;
+  function size(){ W=c.clientWidth; H=c.clientHeight; c.width=W*D; c.height=H*D; x.setTransform(D,0,0,D,0,0); build(); }
+  function build(){
+    nodes=[]; var cx=W*0.68, cy=H*0.42, r=Math.min(W,H)*0.34;
+    for(var i=0;i<46;i++){ var a=Math.random()*Math.PI*2, d=Math.sqrt(Math.random())*r;
+      nodes.push({x:cx+Math.cos(a)*d*1.25, y:cy+Math.sin(a)*d*0.85, p:Math.random()*6}); }
+    nodes.src={x:W*0.40,y:H*0.46}; nodes.sync={x:W*0.96,y:H*0.20}; nodes.bc={x:W*0.96,y:H*0.70};
+  }
+  function spawn(){
+    var hops=[nodes.src]; for(var i=0;i<3;i++) hops.push(nodes[(Math.random()*nodes.length)|0]);
+    var kind=Math.random()<0.6?'sync':'bc'; hops.push(kind==='sync'?nodes.sync:nodes.bc);
+    pk.push({h:hops,t:0,s:0.004+Math.random()*0.004,k:kind});
+  }
+  function pt(h,t){ var n=h.length-1, f=Math.min(t*n,n-1e-6), i=f|0, u=f-i; return {x:h[i].x+(h[i+1].x-h[i].x)*u, y:h[i].y+(h[i+1].y-h[i].y)*u}; }
+  function draw(tm){
+    x.clearRect(0,0,W,H);
+    for(var i=0;i<nodes.length;i++){ var n=nodes[i], g=0.35+0.25*Math.sin(tm/900+n.p);
+      x.beginPath(); x.arc(n.x,n.y,2.2,0,7); x.fillStyle='rgba(180,200,255,'+g+')'; x.fill();
+      for(var j=i+1;j<nodes.length;j++){ var m=nodes[j], dx=n.x-m.x, dy=n.y-m.y, dd=dx*dx+dy*dy;
+        if(dd<9000){ x.strokeStyle='rgba(122,162,255,'+(0.08*(1-dd/9000))+')'; x.lineWidth=1; x.beginPath(); x.moveTo(n.x,n.y); x.lineTo(m.x,m.y); x.stroke(); } } }
+    [['src','#ECEFF4'],['sync','#7AA2FF'],['bc','#3EE6C4']].forEach(function(e){ var n=nodes[e[0]];
+      x.beginPath(); x.arc(n.x,n.y,6,0,7); x.fillStyle=e[1]; x.shadowColor=e[1]; x.shadowBlur=18; x.fill(); x.shadowBlur=0; });
+    for(var k=pk.length-1;k>=0;k--){ var p=pk[k]; p.t+=p.s; if(p.t>=1){ pk.splice(k,1); continue; }
+      var a=pt(p.h,p.t), b=pt(p.h,Math.max(0,p.t-0.04)), col=p.k==='sync'?'122,162,255':'62,230,196';
+      var gr=x.createLinearGradient(b.x,b.y,a.x,a.y); gr.addColorStop(0,'rgba('+col+',0)'); gr.addColorStop(1,'rgba('+col+',.9)');
+      x.strokeStyle=gr; x.lineWidth=2; x.beginPath(); x.moveTo(b.x,b.y); x.lineTo(a.x,a.y); x.stroke(); }
+    if(!still){ if(Math.random()<0.18) spawn(); requestAnimationFrame(draw); }
+  }
+  window.addEventListener('resize',size); size();
+  if(still){ for(var i=0;i<30;i++){ spawn(); pk[pk.length-1].t=Math.random()*0.9; } }
+  requestAnimationFrame(draw);
+})();
+</script>
 </body>
 </html>

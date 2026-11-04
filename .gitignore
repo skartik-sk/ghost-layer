@@ -4,3 +4,4 @@ target/
 wallets/
 .env
 .DS_Store
+.vercel
