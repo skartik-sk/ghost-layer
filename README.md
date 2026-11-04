@@ -71,6 +71,7 @@ All commands accept `--json`. Exit codes: `0` ok, `1` runtime failure (or "not m
 | `ghost status` | broadcast queue: pending/accepted/rejected/failed, delay, fresh connection, explorer links |
 | `ghost verify <txid>` | mined? height, confirmations, explorer links (`--nym` to ask through the mixnet) |
 | `ghost ip` | IP the server sees on SYNC vs BROADCAST (your own IP masked by default) |
+| `ghost explain` | plain-language explanation of the three leaks and what is closed |
 | `ghost attack --events f` | linkage heuristics over a server-side observer log |
 | `ghost report --before d --after d` / `--attack` | `BEFORE_AFTER.md` / `ATTACK_RESULTS.md` |
 

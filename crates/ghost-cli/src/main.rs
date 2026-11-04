@@ -40,6 +40,8 @@ enum Cmd {
     /// Start the gateway; point your wallet at 127.0.0.1:9067
     Up(UpArgs),
     /// Check upstream, chain, TLS, port and storage
+    /// Plain-language explanation of the three leaks and what Ghost Layer closes
+    Explain,
     /// Linkage heuristics over an observer log (ShadeCheck events.jsonl) — the attacker's view
     Attack {
         #[arg(long)]
@@ -221,6 +223,10 @@ async fn run(cli: Cli) -> Result<u8, Fail> {
     match cli.cmd {
         Cmd::Up(a) => up(a, cli.json).await,
         Cmd::Status => status(cli.json).await,
+        Cmd::Explain => {
+            explain(cli.json);
+            Ok(0)
+        }
         Cmd::Ip { nym, show_real_ip } => ip(nym, show_real_ip, cli.json).await,
         Cmd::Attack { events, threshold, single_ip } => attack(&events, threshold, single_ip, cli.json),
         Cmd::Report { before, after, attack: true, threshold, out, nym_note } => {
@@ -316,6 +322,32 @@ fn explorer_links(txid: &str) -> Vec<String> {
 fn fmt_ms(ms: i64) -> String {
     let secs = ms / 1000;
     format!("{:02}:{:02}:{:02}Z", (secs / 3600) % 24, (secs / 60) % 60, secs % 60)
+}
+
+const EXPLAIN: &[(&str, &str, &str, &str)] = &[
+    ("ip", "Your face (IP address)", "The server sees where you connect from.",
+     "--nym: sync and broadcast leave through two different Nym exits; the server never sees your IP (fail closed)."),
+    ("timing", "When you came (sync-then-send)", "You sync, then send seconds later, so the server ties that payment to that wallet.",
+     "Every broadcast goes out on a brand-new connection after a random delay, never on the sync connection."),
+    ("ranges", "Which pages you asked for (block-range fingerprint)", "Today's start = yesterday's end + 1, so the server chains your sessions.",
+     "The server only sees whole 1152-block grid cells (Nym's network-wide rule), the same as every other wallet in that cell."),
+];
+
+fn explain(json: bool) {
+    if json {
+        let v: Vec<_> = EXPLAIN.iter().map(|(k, leak, why, fix)| json!({"leak": k, "what": leak, "why": why, "ghost_layer": fix})).collect();
+        println!("{}", json!({"ok": true, "leaks": v, "not_hidden": ["that a transaction exists and its fee",
+            "that someone syncs (coarse grid cells, tip cell partial)", "tree-state heights, pool filter, transparent-address queries",
+            "Nym use is visible to your ISP"]}));
+        return;
+    }
+    println!("👻 Zcash hides the money. Ghost Layer hides the person.\n");
+    println!("Your wallet visits a light-wallet server to sync and to send. The server can't read your payments, but it notes:\n");
+    for (i, (_, leak, why, fix)) in EXPLAIN.iter().enumerate() {
+        println!("{}. {leak}\n   leak: {why}\n   ✅ {fix}\n", i + 1);
+    }
+    println!("Still visible: that a tx exists + its fee; that someone syncs (coarse); tree-state heights; Nym use (to your ISP).");
+    println!("Details: PRIVACY.md · Evidence: evidence/ATTACK_RESULTS.md (100% → 0% linked)");
 }
 
 fn attack(events: &std::path::Path, threshold: f64, single_ip: bool, json: bool) -> Result<u8, Fail> {
