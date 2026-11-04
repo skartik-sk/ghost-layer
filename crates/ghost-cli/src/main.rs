@@ -81,6 +81,9 @@ enum Cmd {
         txid: String,
         #[arg(long, default_value = DEFAULT_SERVER)]
         server: String,
+        /// Ask through the Nym sync client (asking about a txid from your own IP links you to it)
+        #[command(flatten)]
+        nym: NymArgs,
     },
     Doctor {
         #[arg(long, default_value = DEFAULT_SERVER)]
@@ -221,7 +224,7 @@ async fn run(cli: Cli) -> Result<u8, Fail> {
             attack_report(&before, &after, threshold, out, nym_note.as_deref(), cli.json)
         }
         Cmd::Report { before, after, out, .. } => shadecheck_report(&before, &after, out, cli.json),
-        Cmd::Verify { txid, server } => verify(&txid, &server, cli.json).await,
+        Cmd::Verify { txid, server, nym } => verify(&txid, &server, nym, cli.json).await,
         Cmd::Doctor { server, listen, nym } => doctor(&server, listen, nym, cli.json).await,
     }
 }
@@ -491,14 +494,16 @@ async fn status(json: bool) -> Result<u8, Fail> {
     Ok(0)
 }
 
-async fn verify(txid: &str, server: &str, json: bool) -> Result<u8, Fail> {
+async fn verify(txid: &str, server: &str, nym: NymArgs, json: bool) -> Result<u8, Fail> {
     let mut hash = hex::decode(txid).map_err(|_| Fail::usage("txid must be 64 hex chars", "copy the txid exactly as printed"))?;
     if hash.len() != 32 {
         return Err(Fail::usage("txid must be 64 hex chars", "copy the txid exactly as printed"));
     }
     hash.reverse(); // lightwalletd expects the txid in internal (little-endian) byte order
     let upstream = parse_upstream(server)?;
-    let mut c = Transport::direct(upstream.clone(), "direct")
+    nym.require_up().await?;
+    let t = if nym.nym { Transport::nym(upstream.clone(), "nym-sync", nym.nym_sync) } else { Transport::direct(upstream.clone(), "direct") };
+    let mut c = t
         .fresh()
         .await
         .map_err(|e| Fail::runtime(format!("cannot reach {}: {e:#}", upstream.uri()), "run `ghost doctor`"))?
