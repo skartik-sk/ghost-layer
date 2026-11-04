@@ -84,7 +84,7 @@ enum Cmd {
         txid: String,
         #[arg(long, default_value = DEFAULT_SERVER)]
         server: String,
-        /// Ask through the Nym sync client (asking about a txid from your own IP links you to it)
+        /// Ask through the Nym BROADCAST client (asking from your own IP, or via the sync exit, links you to the tx)
         #[command(flatten)]
         nym: NymArgs,
     },
@@ -515,7 +515,8 @@ async fn verify(txid: &str, server: &str, nym: NymArgs, json: bool) -> Result<u8
     hash.reverse(); // lightwalletd expects the txid in internal (little-endian) byte order
     let upstream = parse_upstream(server)?;
     nym.require_up().await?;
-    let t = if nym.nym { Transport::nym(upstream.clone(), "nym-sync", nym.nym_sync) } else { Transport::direct(upstream.clone(), "direct") };
+    // Via the BROADCAST exit (which already sent this tx): asking through the sync exit would link them.
+    let t = if nym.nym { Transport::nym(upstream.clone(), "nym-broadcast", nym.nym_broadcast) } else { Transport::direct(upstream.clone(), "direct") };
     let mut c = t
         .fresh()
         .await
