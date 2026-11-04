@@ -35,3 +35,8 @@ Tagged: [SDK] [testnet] [Nym] [docs] [ShadeCheck]
   HTTP/2 framing errors). Ghost Layer correctly fails closed; `scripts/nym_setup.sh up --reinit` (fresh random exits)
   fixed it every time. The Nym performance API also timed out once → the script now falls back to the node directory.
 - [network] A ~40 min internet/DNS outage at 18:50 IST killed the Nym clients and our research agents mid-task.
+- [SDK] **Local NU7 regtest is blocked upstream.** Zebra 7.0.0 activates NU7 on regtest (`NU7 = 1`; chain tip branch
+  `77190ad9`), but Zaino 0.10.1 and 0.10.2 can't index the blocks: "ChainHead failed to advance … invalid consensus
+  branch id". Zaino's source uses a placeholder NU7 branch (`0xffff_fffe`; "the real `0x77190ad8` is still a TODO",
+  `packages/zaino-state/src/chain_index/network_adoption.rs`), while NU7's real id is `0x77190AD9`. So our local
+  before/after runs stay on NU6.3 (ShadeCheck's stack); NU7 is proven on public testnet (Zebra 7.0.0 + LightWalletD v0.6.1).
