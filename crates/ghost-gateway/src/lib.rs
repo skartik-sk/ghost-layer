@@ -6,6 +6,9 @@
 
 use std::net::SocketAddr;
 use std::pin::Pin;
+use std::sync::Arc;
+
+use ghost_core::broadcast::{Broadcaster, Outcome, Scheduler, Sent};
 
 use futures::{Stream, StreamExt};
 use ghost_transport::proto::compact_tx_streamer_server::{CompactTxStreamer, CompactTxStreamerServer};
@@ -16,17 +19,53 @@ use tracing::info;
 
 type BoxStream<T> = Pin<Box<dyn Stream<Item = Result<T, Status>> + Send + 'static>>;
 
+/// How `SendTransaction` answers the wallet.
+#[derive(Clone, Copy, Debug, PartialEq, Eq)]
+pub enum SendMode {
+    /// Hold the wallet's call until the real broadcast finishes; return the real upstream reply.
+    Hold,
+    /// Answer as soon as the tx is queued; the real result is tracked in `ghost status`.
+    Queue,
+}
+
+/// Broadcasts each tx over a brand-new upstream connection, then drops it.
+pub struct FreshConnBroadcaster {
+    pub transport: Transport,
+}
+
+impl Broadcaster for FreshConnBroadcaster {
+    async fn broadcast(&self, raw: Vec<u8>) -> anyhow::Result<Sent> {
+        let mut conn = self.transport.fresh().await?;
+        info!(target: "upstream", conn = conn.id, path = "broadcast", transport = self.transport.label,
+            method = "SendTransaction", "fresh connection opened for this tx only");
+        let resp = conn.client.send_transaction(RawTransaction { data: raw, height: 0 }).await?.into_inner();
+        Ok(Sent {
+            conn_id: conn.id,
+            transport: self.transport.label.to_string(),
+            endpoint: self.transport.upstream.uri(),
+            error_code: resp.error_code,
+            error_message: resp.error_message,
+        })
+    }
+}
+
 pub struct Gateway {
     sync: Client,
     sync_conn_id: u64,
+    scheduler: Arc<Scheduler<FreshConnBroadcaster>>,
+    send_mode: SendMode,
 }
 
 impl Gateway {
     /// Opens the single long-lived SYNC connection.
-    pub async fn connect(sync: &Transport) -> anyhow::Result<Self> {
+    pub async fn connect(
+        sync: &Transport,
+        scheduler: Arc<Scheduler<FreshConnBroadcaster>>,
+        send_mode: SendMode,
+    ) -> anyhow::Result<Self> {
         let conn = sync.fresh().await?;
         info!(target: "upstream", conn = conn.id, transport = sync.label, server = %sync.upstream.uri(), "sync connection opened");
-        Ok(Self { sync: conn.client, sync_conn_id: conn.id })
+        Ok(Self { sync: conn.client, sync_conn_id: conn.id, scheduler, send_mode })
     }
 
     fn client(&self) -> Client {
@@ -90,8 +129,29 @@ impl CompactTxStreamer for Gateway {
         unary!(self, r, get_transaction, "GetTransaction")
     }
 
+    /// Never sent over the sync connection: queued, delayed, then broadcast on a fresh one.
     async fn send_transaction(&self, r: Request<RawTransaction>) -> Result<Response<SendResponse>, Status> {
-        unary!(self, r, send_transaction, "SendTransaction")
+        let raw = r.into_inner().data;
+        let (txid, mut rx) = self
+            .scheduler
+            .submit(raw)
+            .map_err(|e| Status::invalid_argument(format!("ghost: {e:#}")))?;
+        if self.send_mode == SendMode::Queue {
+            // The wallet only learns "queued"; `ghost status` shows the real outcome.
+            return Ok(Response::new(SendResponse { error_code: 0, error_message: txid }));
+        }
+        let outcome = loop {
+            if let Some(o) = rx.borrow_and_update().clone() {
+                break o;
+            }
+            rx.changed().await.map_err(|_| Status::internal("ghost: broadcast task ended unexpectedly"))?;
+        };
+        match outcome {
+            Outcome::Accepted(s) | Outcome::Rejected(s) => {
+                Ok(Response::new(SendResponse { error_code: s.error_code, error_message: s.error_message }))
+            }
+            Outcome::Failed(e) => Err(Status::unavailable(format!("ghost: broadcast of {txid} failed: {e}"))),
+        }
     }
 
     type GetTaddressTxidsStream = BoxStream<RawTransaction>;

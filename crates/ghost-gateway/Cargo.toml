@@ -10,3 +10,4 @@ tonic.workspace = true
 futures.workspace = true
 tracing.workspace = true
 anyhow.workspace = true
+ghost-core = { path = "../ghost-core" }

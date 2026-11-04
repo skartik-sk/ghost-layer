@@ -4,9 +4,13 @@
 use std::net::SocketAddr;
 use std::path::PathBuf;
 use std::process::ExitCode;
+use std::sync::Arc;
+
+use ghost_core::broadcast::{Policy, Queue, Scheduler};
+use ghost_gateway::{FreshConnBroadcaster, SendMode};
 
 use clap::{Parser, Subcommand};
-use ghost_transport::proto::{ChainSpec, Empty};
+use ghost_transport::proto::{ChainSpec, Empty, TxFilter};
 use ghost_transport::{Transport, Upstream};
 use serde_json::json;
 
@@ -32,24 +36,44 @@ struct Cli {
 #[derive(Subcommand)]
 enum Cmd {
     /// Start the gateway; point your wallet at 127.0.0.1:9067
-    Up {
-        /// Upstream lightwalletd server (host:port)
+    Up(UpArgs),
+    /// Check upstream, chain, TLS, port and storage
+    /// Broadcast queue: pending/accepted/failed, delays, fresh connection ids, explorer links
+    Status,
+    /// Is this tx mined? Height, confirmations, explorer links (exit 0 only when mined)
+    Verify {
+        txid: String,
         #[arg(long, default_value = DEFAULT_SERVER)]
         server: String,
-        /// Listen address for the wallet
-        #[arg(long, default_value = DEFAULT_LISTEN)]
-        listen: SocketAddr,
-        /// Allow a non-loopback listen address
-        #[arg(long)]
-        allow_remote: bool,
     },
-    /// Check upstream, chain, TLS, port and storage
     Doctor {
         #[arg(long, default_value = DEFAULT_SERVER)]
         server: String,
         #[arg(long, default_value = DEFAULT_LISTEN)]
         listen: SocketAddr,
     },
+}
+
+#[derive(clap::Args)]
+struct UpArgs {
+    /// Upstream lightwalletd server used for sync (host:port)
+    #[arg(long, default_value = DEFAULT_SERVER)]
+    server: String,
+    /// Broadcast through a different server than you sync from (destination splitting)
+    #[arg(long)]
+    broadcast_server: Option<String>,
+    /// Listen address for the wallet
+    #[arg(long, default_value = DEFAULT_LISTEN)]
+    listen: SocketAddr,
+    /// Allow a non-loopback listen address
+    #[arg(long)]
+    allow_remote: bool,
+    /// Broadcast delay profile: demo = 10-40 s, privacy = 60-600 s
+    #[arg(long, default_value = "demo", value_parser = ["demo", "privacy"])]
+    profile: String,
+    /// hold: wallet waits for the real broadcast result; queue: answer at once, track in `ghost status`
+    #[arg(long, default_value = "hold", value_parser = ["hold", "queue"])]
+    send_mode: String,
 }
 
 /// Error carrying its exit code and a "what to do next" hint.
@@ -76,7 +100,7 @@ pub fn data_dir() -> PathBuf {
 
 fn main() -> ExitCode {
     let cli = Cli::parse();
-    let level = if cli.quiet { "error" } else if cli.verbose { "info" } else { "warn,upstream=info,ghost=info" };
+    let level = if cli.quiet { "error" } else if cli.verbose { "info" } else { "warn,upstream=info,broadcast=info" };
     tracing_subscriber::fmt()
         .with_ansi(std::io::IsTerminal::is_terminal(&std::io::stderr()))
         .with_env_filter(tracing_subscriber::EnvFilter::try_from_default_env().unwrap_or_else(|_| level.into()))
@@ -100,7 +124,9 @@ fn main() -> ExitCode {
 
 async fn run(cli: Cli) -> Result<u8, Fail> {
     match cli.cmd {
-        Cmd::Up { server, listen, allow_remote } => up(&server, listen, allow_remote, cli.json).await,
+        Cmd::Up(a) => up(a, cli.json).await,
+        Cmd::Status => status(cli.json).await,
+        Cmd::Verify { txid, server } => verify(&txid, &server, cli.json).await,
         Cmd::Doctor { server, listen } => doctor(&server, listen, cli.json).await,
     }
 }
@@ -109,31 +135,152 @@ fn parse_upstream(server: &str) -> Result<Upstream, Fail> {
     Upstream::parse(server).map_err(|e| Fail::usage(e.to_string(), "use host:port, e.g. testnet.zec.rocks:443"))
 }
 
-async fn up(server: &str, listen: SocketAddr, allow_remote: bool, json: bool) -> Result<u8, Fail> {
-    if !listen.ip().is_loopback() && !allow_remote {
+fn open_queue() -> Result<Arc<Queue>, Fail> {
+    Queue::open(&data_dir().join("ghost.sqlite"))
+        .map(Arc::new)
+        .map_err(|e| Fail::runtime(format!("cannot open queue db: {e:#}"), "check that GHOST_HOME (~/.ghost-layer) is writable"))
+}
+
+async fn up(a: UpArgs, json: bool) -> Result<u8, Fail> {
+    let listen = a.listen;
+    if !listen.ip().is_loopback() && !a.allow_remote {
         return Err(Fail::usage(
             format!("refusing to listen on non-loopback {listen}"),
             "pass --allow-remote if you really want other machines to use this gateway",
         ));
     }
-    let upstream = parse_upstream(server)?;
+    let upstream = parse_upstream(&a.server)?;
+    let bcast_upstream = match &a.broadcast_server {
+        Some(s) => parse_upstream(s)?,
+        None => upstream.clone(),
+    };
+    let policy = Policy::profile(&a.profile).expect("clap restricts profiles");
+    let send_mode = if a.send_mode == "queue" { SendMode::Queue } else { SendMode::Hold };
+
     let sync = Transport::direct(upstream.clone(), "direct");
-    let gw = ghost_gateway::Gateway::connect(&sync).await.map_err(|e| {
+    let broadcaster = FreshConnBroadcaster { transport: Transport::direct(bcast_upstream.clone(), "direct") };
+    let scheduler = Scheduler::new(open_queue()?, policy, broadcaster);
+    let gw = ghost_gateway::Gateway::connect(&sync, scheduler.clone(), send_mode).await.map_err(|e| {
         Fail::runtime(format!("cannot reach upstream {}: {e:#}", upstream.uri()), "run `ghost doctor` to diagnose")
     })?;
+    let resumed = scheduler
+        .resume()
+        .map_err(|e| Fail::runtime(format!("cannot resume queue: {e:#}"), "inspect ~/.ghost-layer/ghost.sqlite"))?;
 
     if json {
-        println!("{}", json!({"ok": true, "listen": listen.to_string(), "upstream": upstream.uri(), "sync_transport": "direct"}));
+        println!("{}", json!({"ok": true, "listen": listen.to_string(), "sync_upstream": upstream.uri(),
+            "broadcast_upstream": bcast_upstream.uri(), "transport": "direct", "profile": a.profile,
+            "policy": policy, "send_mode": a.send_mode, "resumed_pending": resumed}));
     } else {
-        println!("👻 Ghost Layer up on {listen}  →  {}", upstream.uri());
-        println!("   Point your wallet at {listen} (e.g. zcash-devtool -s {listen})");
-        println!("   ✅ wallet headers stripped; one long-lived sync connection");
-        println!("   ⚠️  not yet hidden in this mode: your IP (enable --nym)");
+        println!("👻 Ghost Layer up on {listen}");
+        println!("   sync      → {} (one long-lived connection)", upstream.uri());
+        println!("   broadcast → {} (fresh connection per tx)", bcast_upstream.uri());
+        println!("   Point your wallet at {listen} (e.g. zcash-devtool ... -s {listen})");
+        println!("   ✅ broadcasts never share the sync connection");
+        println!("   ✅ random broadcast delay {}–{} s ({} profile, send-mode {})",
+            policy.min_delay.as_secs(), policy.max_delay.as_secs(), a.profile, a.send_mode);
+        println!("   ✅ wallet headers stripped");
+        println!("   ⚠️  not hidden in direct mode: your IP (same on both paths) — use --nym");
+        if resumed > 0 {
+            println!("   ↻ resumed {resumed} queued broadcast(s) from the previous run");
+        }
     }
     ghost_gateway::serve(gw, listen)
         .await
         .map_err(|e| Fail::runtime(format!("gateway stopped: {e:#}"), "is the port already in use? try `ghost doctor`"))?;
     Ok(0)
+}
+
+fn explorer_links(txid: &str) -> Vec<String> {
+    vec![
+        format!("https://testnet.zcashexplorer.app/transactions/{txid}"),
+        format!("https://zexplorer.app/testnet/tx/{txid}"),
+    ]
+}
+
+fn fmt_ms(ms: i64) -> String {
+    let secs = ms / 1000;
+    format!("{:02}:{:02}:{:02}Z", (secs / 3600) % 24, (secs / 60) % 60, secs % 60)
+}
+
+async fn status(json: bool) -> Result<u8, Fail> {
+    let rows = open_queue()?.list().map_err(|e| Fail::runtime(format!("{e:#}"), "inspect ~/.ghost-layer/ghost.sqlite"))?;
+    if json {
+        let v: Vec<_> = rows
+            .iter()
+            .map(|r| json!({"row": r, "explorer": explorer_links(&r.txid),
+                "delay_s": (r.scheduled_at_ms - r.received_at_ms) as f64 / 1000.0}))
+            .collect();
+        println!("{}", json!({"ok": true, "broadcasts": v}));
+        return Ok(0);
+    }
+    if rows.is_empty() {
+        println!("No broadcasts yet. Send a payment from a wallet pointed at {DEFAULT_LISTEN}.");
+    }
+    for r in &rows {
+        let icon = match r.status.as_str() { "accepted" => "✅", "pending" => "⏳", _ => "❌" };
+        println!("{icon} {} {}", r.status, r.txid);
+        println!("   received {}  scheduled {} (+{:.1} s random delay)  sent {}",
+            fmt_ms(r.received_at_ms), fmt_ms(r.scheduled_at_ms),
+            (r.scheduled_at_ms - r.received_at_ms) as f64 / 1000.0,
+            r.sent_at_ms.map(fmt_ms).unwrap_or_else(|| "-".into()));
+        if let Some(c) = r.conn_id {
+            println!("   fresh connection #{c} via {} → {}", r.transport.clone().unwrap_or_default(), r.endpoint.clone().unwrap_or_default());
+        }
+        if r.status != "accepted" {
+            if let Some(m) = &r.error_message {
+                println!("   upstream said: {m}");
+            }
+        }
+        for l in explorer_links(&r.txid) {
+            println!("   🔗 {l}");
+        }
+    }
+    Ok(0)
+}
+
+async fn verify(txid: &str, server: &str, json: bool) -> Result<u8, Fail> {
+    let mut hash = hex::decode(txid).map_err(|_| Fail::usage("txid must be 64 hex chars", "copy the txid exactly as printed"))?;
+    if hash.len() != 32 {
+        return Err(Fail::usage("txid must be 64 hex chars", "copy the txid exactly as printed"));
+    }
+    hash.reverse(); // lightwalletd expects the txid in internal (little-endian) byte order
+    let upstream = parse_upstream(server)?;
+    let mut c = Transport::direct(upstream.clone(), "direct")
+        .fresh()
+        .await
+        .map_err(|e| Fail::runtime(format!("cannot reach {}: {e:#}", upstream.uri()), "run `ghost doctor`"))?
+        .client;
+    let tip = c.get_latest_block(ChainSpec {}).await.map_err(|e| Fail::runtime(e.to_string(), "run `ghost doctor`"))?.into_inner().height;
+    let res = c.get_transaction(TxFilter { block: None, index: 0, hash }).await;
+    let (state, height, confs) = match res {
+        Ok(t) => match t.into_inner().height {
+            0 => ("mempool", None, 0),
+            u64::MAX => ("orphaned", None, 0),
+            h => ("mined", Some(h), tip.saturating_sub(h) + 1),
+        },
+        Err(s) if s.code() == tonic::Code::NotFound || s.message().contains("not found") || s.message().contains("No such") => {
+            ("not_found", None, 0)
+        }
+        Err(s) => return Err(Fail::runtime(format!("GetTransaction: {s}"), "retry; the server may be busy")),
+    };
+    let links = explorer_links(txid);
+    if json {
+        println!("{}", json!({"ok": state == "mined", "txid": txid, "state": state, "height": height,
+            "confirmations": confs, "tip": tip, "explorer": links}));
+    } else {
+        match state {
+            "mined" => println!("✅ mined at height {} — {confs} confirmation(s) (tip {tip})", height.unwrap()),
+            "mempool" => println!("⏳ in mempool, not mined yet (tip {tip}) → run again in ~30 s"),
+            "orphaned" => println!("⚠️  mined on a fork, not in the main chain → wait, it may be re-mined"),
+            _ => println!("❌ not found on {} → check the txid, or wait if you just sent it", upstream.uri()),
+        }
+        println!("   txid {txid}");
+        for l in &links {
+            println!("   🔗 {l}");
+        }
+    }
+    Ok(if state == "mined" { 0 } else { 1 })
 }
 
 #[derive(serde::Serialize)]

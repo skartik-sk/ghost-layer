@@ -151,9 +151,15 @@ impl Queue {
         Ok(rows.collect::<Result<_, _>>()?)
     }
 
+    fn reschedule(&self, txid: &str, at_ms: i64) -> anyhow::Result<()> {
+        self.db.lock().unwrap().execute("UPDATE broadcasts SET scheduled_at_ms=?2 WHERE txid=?1", params![txid, at_ms])?;
+        Ok(())
+    }
+
     fn finish(&self, txid: &str, status: &str, sent: Option<&Sent>, err: Option<&str>) -> anyhow::Result<()> {
         self.db.lock().unwrap().execute(
-            "UPDATE broadcasts SET status=?2, sent_at_ms=?3, conn_id=?4, transport=?5, endpoint=?6,
+            // Raw tx bytes are wiped once the outcome is final (only `failed` keeps them for retry).
+            "UPDATE broadcasts SET raw = CASE WHEN ?2 = 'failed' THEN raw ELSE x'' END, status=?2, sent_at_ms=?3, conn_id=?4, transport=?5, endpoint=?6,
              error_code=?7, error_message=?8 WHERE txid=?1",
             params![
                 txid,
@@ -188,8 +194,17 @@ impl<B: Broadcaster> Scheduler<B> {
     pub fn resume(self: &Arc<Self>) -> anyhow::Result<usize> {
         let pending = self.queue.pending()?;
         for (txid, raw, at) in &pending {
-            info!(target: "broadcast", %txid, "resuming queued tx from previous run");
-            self.spawn(txid.clone(), raw.clone(), *at);
+            // An overdue tx must not go out the instant we restart (and never together with other
+            // resumed txs): give each its own fresh random delay.
+            let at = if *at <= now_ms() {
+                let at = now_ms() + self.policy.sample().as_millis() as i64;
+                self.queue.reschedule(txid, at)?;
+                at
+            } else {
+                *at
+            };
+            info!(target: "broadcast", %txid, in_s = (at - now_ms()) / 1000, "resuming queued tx from previous run");
+            self.spawn(txid.clone(), raw.clone(), at);
         }
         Ok(pending.len())
     }
