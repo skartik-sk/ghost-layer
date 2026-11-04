@@ -1,16 +1,23 @@
 [package]
-name = "ghost-cli"
+name = "ghost-layer"
 version.workspace = true
 edition.workspace = true
 license.workspace = true
+repository.workspace = true
+homepage.workspace = true
+keywords.workspace = true
+categories.workspace = true
+rust-version.workspace = true
+description = "Ghost Layer (`ghost`): unlink your Zcash payments from your wallet sync. Split broadcast, random delay, grid-aligned sync, Nym by default; ZecProof, Ghost Wallet, MCP server."
+readme = "README.md"
 
 [[bin]]
 name = "ghost"
 path = "src/main.rs"
 
 [dependencies]
-ghost-transport = { path = "../ghost-transport" }
-ghost-gateway = { path = "../ghost-gateway" }
+ghost-transport = { package = "ghost-layer-transport", path = "../ghost-transport", version = "0.1.0" }
+ghost-gateway = { package = "ghost-layer-gateway", path = "../ghost-gateway", version = "0.1.0" }
 tonic.workspace = true
 tokio.workspace = true
 clap.workspace = true
@@ -19,9 +26,9 @@ serde_json.workspace = true
 anyhow.workspace = true
 tracing.workspace = true
 tracing-subscriber.workspace = true
-ghost-core = { path = "../ghost-core" }
+ghost-core = { package = "ghost-layer-core", path = "../ghost-core", version = "0.1.0" }
 hex.workspace = true
-ghost-attacker = { path = "../ghost-attacker" }
+ghost-attacker = { package = "ghost-layer-attacker", path = "../ghost-attacker", version = "0.1.0" }
 rmcp.workspace = true
 schemars.workspace = true
 zcash_client_backend.workspace = true

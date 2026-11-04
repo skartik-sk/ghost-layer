@@ -6,6 +6,11 @@ members = ["crates/*"]
 version = "0.1.0"
 edition = "2024"
 license = "MIT"
+repository = "https://github.com/skartik-sk/ghost-layer"
+homepage = "https://github.com/skartik-sk/ghost-layer"
+keywords = ["zcash", "privacy", "lightwalletd", "nym", "mixnet"]
+categories = ["cryptography::cryptocurrencies", "network-programming", "command-line-utilities"]
+rust-version = "1.85"
 
 [workspace.dependencies]
 tonic = { version = "0.14.9", features = ["tls-ring", "tls-webpki-roots"] }
@@ -30,11 +35,11 @@ serde = { version = "1", features = ["derive"] }
 serde_json = "1.0.154"
 anyhow = "1.0.104"
 futures = "0.3.34"
-# librustzcash pinned to the same NU7/Ironwood-capable rev that zcash-devtool uses.
-zcash_primitives = { version = "0.31.0-pre.2", default-features = false, features = ["std"] }
-zcash_protocol = "0.11.0-pre.1"
-zcash_client_backend = { version = "=0.25.0-pre.2", features = ["orchard"] }
-zcash_keys = { version = "=0.17.0-pre.2", features = ["orchard", "sapling"] }
+# librustzcash stable releases with NU7 + Ironwood support (crates.io).
+zcash_primitives = { version = "0.31.0", default-features = false, features = ["std"] }
+zcash_protocol = "0.11.0"
+zcash_client_backend = { version = "0.25.0", features = ["orchard"] }
+zcash_keys = { version = "0.17.0", features = ["orchard", "sapling"] }
 hex = "0.4"
 sha2 = "0.10"
 rmcp = { version = "3.8.0", features = ["server", "macros", "transport-io"] }
@@ -42,16 +47,5 @@ schemars = "1"
 orchard = { version = "0.16.0", default-features = false }
 zcash_note_encryption = "0.5.1"
 base64 = "0.23.1"
-# Nym's network-wide sync grid (no I/O). Pinned: develop HEAD on 2026-11-04.
-nym-swizzle-zcash = { git = "https://github.com/nymtech/nym", rev = "e416f724ad4f6b7ebb1f91d3ceeb9e64543526bd", default-features = false }
-
-[patch.crates-io]
-zcash_client_backend = { git = "https://github.com/zcash/librustzcash.git", rev = "eb38d7a373661179dbc083a2fd58b3a6c9b25818" }
-zcash_keys = { git = "https://github.com/zcash/librustzcash.git", rev = "eb38d7a373661179dbc083a2fd58b3a6c9b25818" }
-zip321 = { git = "https://github.com/zcash/librustzcash.git", rev = "eb38d7a373661179dbc083a2fd58b3a6c9b25818" }
-zcash_address = { git = "https://github.com/zcash/librustzcash.git", rev = "eb38d7a373661179dbc083a2fd58b3a6c9b25818" }
-equihash = { git = "https://github.com/zcash/librustzcash.git", rev = "eb38d7a373661179dbc083a2fd58b3a6c9b25818" }
-zcash_encoding = { git = "https://github.com/zcash/librustzcash.git", rev = "eb38d7a373661179dbc083a2fd58b3a6c9b25818" }
-zcash_primitives = { git = "https://github.com/zcash/librustzcash.git", rev = "eb38d7a373661179dbc083a2fd58b3a6c9b25818" }
-zcash_protocol = { git = "https://github.com/zcash/librustzcash.git", rev = "eb38d7a373661179dbc083a2fd58b3a6c9b25818" }
-zcash_transparent = { git = "https://github.com/zcash/librustzcash.git", rev = "eb38d7a373661179dbc083a2fd58b3a6c9b25818" }
+# Nym's network-wide sync grid (no I/O). crates.io 1.21.6: grid.rs identical to develop @ e416f724.
+nym-swizzle-zcash = { version = "1.21.6", default-features = false }

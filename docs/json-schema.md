@@ -4,7 +4,7 @@ Every `ghost` command accepts `--json` and prints **one JSON object on the last 
 Logs go to stderr. Every object has `"schema_version": 1` and `"ok": <bool>`.
 Machine-readable schemas (JSON Schema 2020-12) live in [`docs/schemas/`](schemas/), and
 `crates/ghost-cli/tests/json_contract.rs` validates the **real** output of the binary against them
-(`cargo test -p ghost-cli --test json_contract`; add `GHOST_ONLINE_TESTS=1` for the testnet checks).
+(`cargo test -p ghost-layer --test json_contract`; add `GHOST_ONLINE_TESTS=1` for the testnet checks).
 
 ## Exit codes
 

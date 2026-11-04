@@ -2,7 +2,7 @@
 # Regenerates llms-full.txt from the real binary's --help output and the JSON schemas.
 set -euo pipefail
 cd "$(dirname "$0")/.."
-cargo build --release -q -p ghost-cli
+cargo build --release -q -p ghost-layer
 G=target/release/ghost
 {
   cat llms.txt

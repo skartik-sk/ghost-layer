@@ -26,7 +26,7 @@ summary() { echo; echo "== e2e_testnet summary ($MODE)"; printf '%s\n' "${RESULT
 GW_PID=""
 trap '[[ -n "$GW_PID" ]] && kill "$GW_PID" 2>/dev/null || true' EXIT
 
-cargo build --release -q -p ghost-cli || fail "cargo build"
+cargo build --release -q -p ghost-layer || fail "cargo build"
 NYMFLAG=(); [[ "$MODE" == nym ]] || NYMFLAG=(--direct)   # Nym is the default
 "$GHOST" doctor ${NYMFLAG[@]+"${NYMFLAG[@]}"} --listen 127.0.0.1:19067 || fail "ghost doctor"
 ok "ghost doctor green ($MODE)"

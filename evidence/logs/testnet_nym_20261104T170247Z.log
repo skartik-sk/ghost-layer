@@ -1,0 +1,17 @@
+2026-11-04T17:02:49.953711Z  INFO upstream: startup probe ok (connection closed) conn=1 transport="nym-sync" server=https://testnet.zec.rocks:443 tip=4582721
+2026-11-04T17:02:52.649967Z  INFO upstream: new sync connection for a new wallet session conn=2 path="sync" transport="nym-sync" wallet=127.0.0.1:59554
+2026-11-04T17:02:52.650107Z  INFO upstream: start_index=0 max=0 conn=2 path="sync" method="GetSubtreeRoots"
+2026-11-04T17:02:53.431089Z  INFO upstream: start_index=0 max=0 conn=2 path="sync" method="GetSubtreeRoots"
+2026-11-04T17:02:54.092930Z  INFO upstream: start_index=0 max=0 conn=2 path="sync" method="GetSubtreeRoots"
+2026-11-04T17:02:54.726080Z  INFO upstream:  conn=2 path="sync" method="GetLatestBlock"
+2026-11-04T17:02:55.471023Z  INFO upstream:  conn=2 path="sync" method="GetAddressUtxosStream"
+2026-11-04T17:02:56.151879Z  INFO grid: planned grid-aligned fetch wallet_range=4582613..=4582621 emitted=4581504..=4582655 cells=1 spacing=1152
+2026-11-04T17:02:56.152130Z  INFO upstream: range=4581504..=4582655 (grid cell) conn=2 path="sync" method="GetBlockRange" aligned=true
+2026-11-04T17:03:03.822708Z  INFO upstream: height=4582612 conn=2 path="sync" method="GetTreeState"
+2026-11-04T17:03:04.864126Z  INFO grid: planned grid-aligned fetch wallet_range=4582622..=4582721 emitted=4581504..=4582721 cells=2 spacing=1152
+2026-11-04T17:03:04.864164Z  INFO upstream: range=4581504..=4582655 (grid cell) conn=2 path="sync" method="GetBlockRange" aligned=true
+2026-11-04T17:03:16.334454Z  INFO upstream: range=4582656..=4582721 (grid cell) conn=2 path="sync" method="GetBlockRange" aligned=true
+2026-11-04T17:03:18.796142Z  INFO upstream: height=4582621 conn=2 path="sync" method="GetTreeState"
+2026-11-04T17:03:24.951458Z  INFO broadcast: queued; will broadcast on a fresh connection after random delay txid=2bed1a8124b104c8cac4b2857ed50a71374b3150b210ae8b30dda10cfee07ee6 delay_s=21.56
+2026-11-04T17:03:48.313164Z  INFO upstream: fresh connection opened for this tx only conn=3 path="broadcast" transport="nym-broadcast" method="SendTransaction"
+2026-11-04T17:03:51.015143Z  INFO broadcast: broadcast done txid=2bed1a8124b104c8cac4b2857ed50a71374b3150b210ae8b30dda10cfee07ee6 status="accepted" conn=3 transport=nym-broadcast endpoint=https://testnet.zec.rocks:443 scheduled_ms=1793811826511 actual_ms=1793811831015 late_ms=4504 code=0 msg="2bed1a8124b104c8cac4b2857ed50a71374b3150b210ae8b30dda10cfee07ee6"

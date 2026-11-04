@@ -1,8 +1,15 @@
 [package]
-name = "ghost-transport"
+name = "ghost-layer-transport"
 version.workspace = true
 edition.workspace = true
 license.workspace = true
+repository.workspace = true
+homepage.workspace = true
+keywords.workspace = true
+categories.workspace = true
+rust-version.workspace = true
+description = "Ghost Layer transports: lightwalletd gRPC client over direct TLS or Nym SOCKS5 (fail closed), with the vendored lightwallet protocol (NU7/Ironwood)."
+readme = "README.md"
 
 [dependencies]
 tonic.workspace = true

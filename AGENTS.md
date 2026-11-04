@@ -13,7 +13,7 @@
 ```bash
 cargo build --release                         # target/release/ghost
 cargo test                                    # unit + JSON-contract tests (offline)
-GHOST_ONLINE_TESTS=1 cargo test -p ghost-cli --test json_contract   # + real testnet checks
+GHOST_ONLINE_TESTS=1 cargo test -p ghost-layer --test json_contract   # + real testnet checks
 cargo clippy --release
 scripts/gen_llms_full.sh                      # after changing CLI help or schemas
 ```
@@ -32,7 +32,7 @@ MODE=nym WALLET_DIR=… IDENTITY=… TO_ADDRESS=utest1… ZCASH_DEVTOOL=… scri
 
 | Path | What |
 |---|---|
-| `proto/` | vendored lightwallet protocol (zcash/lightwallet-protocol ec53075) |
+| `crates/ghost-transport/proto/` | vendored lightwallet protocol (zcash/lightwallet-protocol ec53075) |
 | `crates/ghost-core` | `grid` (nym-swizzle-zcash quantize + cell cache), `broadcast` (sqlite queue, random delay, restart-safe), `events` (upstream event log). No network code. |
 | `crates/ghost-transport` | direct TLS + Nym SOCKS5 connector, `public_ip`, generated protocol |
 | `crates/ghost-gateway` | tonic `CompactTxStreamer` server (all 21 RPCs) |
@@ -41,6 +41,19 @@ MODE=nym WALLET_DIR=… IDENTITY=… TO_ADDRESS=utest1… ZCASH_DEVTOOL=… scri
 | `scripts/` | `nym_setup.sh`, `e2e_local.sh`, `e2e_testnet.sh`, `regtest_payment.sh`, `pipeline_check.py`, `gen_llms_full.sh` |
 | `evidence/` | committed real outputs (never edit by hand except clearly-labelled interpretation sections) |
 | `docs/schemas/` | JSON Schemas of every `--json` output |
+
+## Publishing to crates.io
+
+Packages: `ghost-layer` (the `ghost` binary), `ghost-layer-core`, `ghost-layer-transport`, `ghost-layer-gateway`,
+`ghost-layer-attacker` (Rust names stay `ghost_core` etc. via `package =` aliases). All dependencies are on crates.io
+(librustzcash 0.31 / 0.25 stable, `nym-swizzle-zcash` 1.21.6, whose `grid.rs` is byte-identical to develop @ e416f724).
+Each crate's `README.md` is a copy of the root README (refresh it before a release).
+
+```bash
+cargo publish --workspace --dry-run      # packages + verifies every crate from its packaged sources
+cargo login                              # a human, with their own crates.io token
+cargo publish --workspace                # irreversible
+```
 
 ## Conventions
 

@@ -48,7 +48,7 @@ payments() { # $1 = server, $2 = label
 }
 
 # 0. prerequisites
-cargo build --release -q -p ghost-cli || fail "cargo build"
+cargo build --release -q -p ghost-layer || fail "cargo build"
 ok "ghost built ($("$GHOST" --version))"
 nc -z 127.0.0.1 29067 || (cd "$SHADECHECK_DIR" && docker compose -f integration/modern/compose.yml up -d zebra zaino) \
   || fail "start regtest backend"

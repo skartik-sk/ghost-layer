@@ -376,3 +376,33 @@ server sees on SYNC      185.253.116.148  via Nym 127.0.0.1:1080 [exit node 2798
 server sees on BROADCAST 185.99.2.145  via Nym 127.0.0.1:1081 [exit node 3091 (185.99.2.145)]
 ✅ three different IPs: the server cannot link sync and broadcast by IP
 ```
+
+## nym — 2026-11-04T17:05:21Z
+
+- txid: `2bed1a8124b104c8cac4b2857ed50a71374b3150b210ae8b30dda10cfee07ee6`
+- explorer: https://testnet.zcashexplorer.app/transactions/2bed1a8124b104c8cac4b2857ed50a71374b3150b210ae8b30dda10cfee07ee6
+- wallet → Ghost Layer (nym) → testnet.zec.rocks
+
+`ghost verify`:
+```
+✅ mined at height 4582724 — 2 confirmation(s) (tip 4582725)
+   txid 2bed1a8124b104c8cac4b2857ed50a71374b3150b210ae8b30dda10cfee07ee6
+   🔗 https://testnet.zcashexplorer.app/transactions/2bed1a8124b104c8cac4b2857ed50a71374b3150b210ae8b30dda10cfee07ee6
+   🔗 https://zexplorer.app/testnet/tx/2bed1a8124b104c8cac4b2857ed50a71374b3150b210ae8b30dda10cfee07ee6
+```
+
+Ghost Layer broadcast log:
+```
+2026-11-04T17:02:52.649967Z  INFO upstream: new sync connection for a new wallet session conn=2 path="sync" transport="nym-sync" wallet=127.0.0.1:59554
+2026-11-04T17:03:24.951458Z  INFO broadcast: queued; will broadcast on a fresh connection after random delay txid=2bed1a8124b104c8cac4b2857ed50a71374b3150b210ae8b30dda10cfee07ee6 delay_s=21.56
+2026-11-04T17:03:48.313164Z  INFO upstream: fresh connection opened for this tx only conn=3 path="broadcast" transport="nym-broadcast" method="SendTransaction"
+2026-11-04T17:03:51.015143Z  INFO broadcast: broadcast done txid=2bed1a8124b104c8cac4b2857ed50a71374b3150b210ae8b30dda10cfee07ee6 status="accepted" conn=3 transport=nym-broadcast endpoint=https://testnet.zec.rocks:443 scheduled_ms=1793811826511 actual_ms=1793811831015 late_ms=4504 code=0 msg="2bed1a8124b104c8cac4b2857ed50a71374b3150b210ae8b30dda10cfee07ee6"
+```
+
+`ghost ip`:
+```
+your real IP            103.179.x.x
+server sees on SYNC      185.253.116.148  via Nym 127.0.0.1:1080 [exit node 2798 (185.253.116.148)]
+server sees on BROADCAST 185.99.2.145  via Nym 127.0.0.1:1081 [exit node 3091 (185.99.2.145)]
+✅ three different IPs: the server cannot link sync and broadcast by IP
+```

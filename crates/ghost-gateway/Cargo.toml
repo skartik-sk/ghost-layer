@@ -1,16 +1,23 @@
 [package]
-name = "ghost-gateway"
+name = "ghost-layer-gateway"
 version.workspace = true
 edition.workspace = true
 license.workspace = true
+repository.workspace = true
+homepage.workspace = true
+keywords.workspace = true
+categories.workspace = true
+rust-version.workspace = true
+description = "Ghost Layer gateway: a local lightwalletd-compatible CompactTxStreamer server that splits broadcasts from sync, delays them randomly and grid-aligns sync."
+readme = "README.md"
 
 [dependencies]
-ghost-transport = { path = "../ghost-transport" }
+ghost-transport = { package = "ghost-layer-transport", path = "../ghost-transport", version = "0.1.0" }
 tonic.workspace = true
 futures.workspace = true
 tracing.workspace = true
 anyhow.workspace = true
-ghost-core = { path = "../ghost-core" }
+ghost-core = { package = "ghost-layer-core", path = "../ghost-core", version = "0.1.0" }
 tokio.workspace = true
 tokio-stream.workspace = true
 prost.workspace = true
