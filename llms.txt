@@ -16,6 +16,7 @@ The three leaks it fixes: (1) IP → Nym exits; (2) sync-then-send timing → ev
 - `ghost doctor` — health checks `{checks[]{name,ok,detail}}`
 - `ghost attack --events ~/.ghost-layer/upstream-events.jsonl` — attacker heuristics `{sends[]{linked, linked_by[]}, rate}`
 - `ghost report --attack --before b.jsonl --after a.jsonl --nym-events n.jsonl` — writes evidence/ATTACK_RESULTS.md
+- `ghost proof create --ufvk-file sender.ufvk --txid <txid>` / `ghost proof verify zecproof1…` — ZecProof: prove one payment (only that output is revealed); verify → `{valid, recipient, value_zat, memo, height}`
 - `ghost explain` — plain-language explanation `{leaks[], not_hidden[]}`
 - `ghost dashboard` — live page on http://127.0.0.1:9070 (loopback only)
 - `ghost mcp` — MCP stdio server (read-only tools; `ghost_pay` only with `--allow-pay --max-amount --max-per-hour --wallet --identity`)

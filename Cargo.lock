@@ -1126,6 +1126,7 @@ name = "ghost-cli"
 version = "0.1.0"
 dependencies = [
  "anyhow",
+ "base64 0.23.1",
  "clap",
  "ghost-attacker",
  "ghost-core",
@@ -1133,6 +1134,7 @@ dependencies = [
  "ghost-transport",
  "hex",
  "jsonschema",
+ "orchard",
  "rmcp",
  "schemars",
  "serde",
@@ -1143,6 +1145,7 @@ dependencies = [
  "tracing-subscriber",
  "zcash_client_backend",
  "zcash_keys",
+ "zcash_note_encryption",
  "zcash_primitives",
  "zcash_protocol",
 ]

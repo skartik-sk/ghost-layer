@@ -1,0 +1,58 @@
+{
+  "$schema": "https://json-schema.org/draft/2020-12/schema",
+  "type": "object",
+  "required": [
+    "schema_version",
+    "ok",
+    "proof",
+    "txid",
+    "pool",
+    "action_index",
+    "height",
+    "recipient",
+    "value_zat",
+    "memo",
+    "msg"
+  ],
+  "properties": {
+    "schema_version": {
+      "const": 1
+    },
+    "ok": {
+      "type": "boolean"
+    },
+    "proof": {
+      "type": "string",
+      "pattern": "^zecproof1[A-Za-z0-9_-]+$"
+    },
+    "txid": {
+      "type": "string",
+      "pattern": "^[0-9a-f]{64}$"
+    },
+    "pool": {
+      "enum": [
+        "ironwood",
+        "orchard"
+      ]
+    },
+    "action_index": {
+      "type": "integer"
+    },
+    "height": {
+      "type": "integer"
+    },
+    "recipient": {
+      "type": "string"
+    },
+    "value_zat": {
+      "type": "integer"
+    },
+    "memo": {
+      "type": "string"
+    },
+    "msg": {
+      "type": "string"
+    }
+  },
+  "title": "ghost --json proof create"
+}

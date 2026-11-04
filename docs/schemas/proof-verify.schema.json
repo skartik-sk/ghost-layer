@@ -1,0 +1,80 @@
+{
+  "$schema": "https://json-schema.org/draft/2020-12/schema",
+  "type": "object",
+  "required": [
+    "schema_version",
+    "ok",
+    "valid"
+  ],
+  "properties": {
+    "schema_version": {
+      "const": 1
+    },
+    "ok": {
+      "type": "boolean"
+    },
+    "valid": {
+      "type": "boolean"
+    },
+    "reason": {
+      "type": "string"
+    },
+    "txid": {
+      "type": "string"
+    },
+    "height": {
+      "type": "integer"
+    },
+    "pool": {
+      "type": "string"
+    },
+    "action_index": {
+      "type": "integer"
+    },
+    "recipient": {
+      "type": "string"
+    },
+    "value_zat": {
+      "type": "integer"
+    },
+    "memo": {
+      "type": "string"
+    },
+    "msg": {
+      "type": "string"
+    },
+    "msg_signed": {
+      "const": false
+    },
+    "explorer": {
+      "type": "array",
+      "items": {
+        "type": "string"
+      }
+    }
+  },
+  "title": "ghost --json proof verify",
+  "if": {
+    "properties": {
+      "valid": {
+        "const": true
+      }
+    }
+  },
+  "then": {
+    "required": [
+      "txid",
+      "height",
+      "recipient",
+      "value_zat",
+      "memo",
+      "msg_signed",
+      "explorer"
+    ]
+  },
+  "else": {
+    "required": [
+      "reason"
+    ]
+  }
+}

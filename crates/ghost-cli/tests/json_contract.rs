@@ -100,6 +100,19 @@ fn online_outputs_match_schemas() {
     assert_eq!(v["state"], "mined");
     assert_eq!(v["height"], 4582118);
 
+    // ZecProof committed in evidence/zecproof.md (real payment a23746a7…): valid, and a forged one is not.
+    let md = std::fs::read_to_string(root().join("evidence/zecproof.md")).unwrap();
+    let proof = md.split_whitespace().find(|w| w.starts_with("zecproof1ey")).expect("proof in evidence").to_string();
+    let (code, v) = ghost(&home, &["proof", "verify", "--direct", &proof]);
+    assert_eq!(code, 0);
+    check("proof-verify", &v);
+    assert_eq!(v["valid"], true);
+    assert_eq!(v["value_zat"], 100000);
+    let (code, v) = ghost(&home, &["proof", "verify", "--direct", "zecproof1AAAA"]);
+    assert_eq!(code, 1);
+    check("proof-verify", &v);
+    assert_eq!(v["valid"], false);
+
     let (_, v) = ghost(&home, &["doctor", "--direct", "--listen", "127.0.0.1:19068"]);
     check("doctor", &v);
     let _ = std::fs::remove_dir_all(home);

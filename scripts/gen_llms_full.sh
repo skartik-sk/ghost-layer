@@ -8,7 +8,7 @@ G=target/release/ghost
   cat llms.txt
   echo; echo "---"; echo; echo "# Full command reference (generated from \`ghost <cmd> --help\` by scripts/gen_llms_full.sh)"
   echo; echo '```'; "$G" --help; echo '```'
-  for c in pay up status verify ip doctor explain attack report dashboard mcp; do
+  for c in pay up status verify ip doctor explain attack report dashboard mcp proof; do
     echo; echo "## ghost $c"; echo; echo '```'; "$G" "$c" --help; echo '```'
   done
   echo; echo "---"; echo; cat docs/json-schema.md

@@ -6,5 +6,7 @@
    - Share the split-broadcast + random-delay design with zecmix (<https://github.com/apeirs/zecmix>), whose README lists `--split` and random delay as future plans.
    - ShadeCheck (<https://github.com/0xaje/ShadeCheck->): SC-002 currently flags every non-empty broadcast regardless of connection or timing. Propose a session-aware variant (broadcast on a connection that also synced, or within N s of a tip event), so a split/delayed broadcast can be distinguished.
 3. **"Ghost mode" in a wallet's network layer** (Zingolib / Zakura): build the tx when the delay fires (fixes the expiry-height hint), quantize ranges wallet-side.
-4. **ZecProof → ZIP 311** (<https://github.com/zcash/zips/pull/387>): "invisible by default, provable by choice" single-payment proofs.
+4. **ZecProof (built: `ghost proof`) → full ZIP 311** (<https://github.com/zcash/zips/pull/387>): "invisible by default, provable by choice" single-payment proofs.
 5. Research ZK attribute proofs over payments (needs Halo2/Pallas-compatible circuits).
+6. **Android / iOS:** expose `ghost-core` (grid planner, broadcast scheduler) and the transport through **uniffi** bindings so the Zcash mobile SDKs (Zodl/Zashi, Zingo) can run "Ghost mode" in-process, with smolmix/smoldvpn instead of a separate SOCKS client.
+7. **ZecProof:** signed messages (bind `msg` with a key from the payment) and proofs for transparent/Sapling outputs.

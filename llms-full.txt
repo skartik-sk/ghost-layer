@@ -16,6 +16,7 @@ The three leaks it fixes: (1) IP → Nym exits; (2) sync-then-send timing → ev
 - `ghost doctor` — health checks `{checks[]{name,ok,detail}}`
 - `ghost attack --events ~/.ghost-layer/upstream-events.jsonl` — attacker heuristics `{sends[]{linked, linked_by[]}, rate}`
 - `ghost report --attack --before b.jsonl --after a.jsonl --nym-events n.jsonl` — writes evidence/ATTACK_RESULTS.md
+- `ghost proof create --ufvk-file sender.ufvk --txid <txid>` / `ghost proof verify zecproof1…` — ZecProof: prove one payment (only that output is revealed); verify → `{valid, recipient, value_zat, memo, height}`
 - `ghost explain` — plain-language explanation `{leaks[], not_hidden[]}`
 - `ghost dashboard` — live page on http://127.0.0.1:9070 (loopback only)
 - `ghost mcp` — MCP stdio server (read-only tools; `ghost_pay` only with `--allow-pay --max-amount --max-per-hour --wallet --identity`)
@@ -50,6 +51,7 @@ Commands:
   pay        Send a private payment in one command: gateway → sync → send (random delay, fresh connection) → mined
   dashboard  Live local web page: what the server sees, queue countdowns, grid, attacker view (127.0.0.1:9070)
   mcp        MCP server (stdio) for AI agents: read-only tools; ghost_pay only with --allow-pay + caps
+  proof      ZecProof: prove ONE payment you sent (create) or check a proof (verify)
   explain    Plain-language explanation of the three leaks and what Ghost Layer closes
   attack     Linkage heuristics over an observer log (ShadeCheck events.jsonl) — the attacker's view
   report     Before/after reports: ShadeCheck (--before/--after dirs) or attacker (--attack with events files)
@@ -302,6 +304,25 @@ Options:
   -h, --help                         Print help
 ```
 
+## ghost proof
+
+```
+ZecProof: prove ONE payment you sent (create) or check a proof (verify)
+
+Usage: ghost proof [OPTIONS] <COMMAND>
+
+Commands:
+  create  Create a proof for ONE output of a payment you SENT (needs your UFVK; it never leaves this machine)
+  verify  Verify a zecproof1… string against the chain
+  help    Print this message or the help of the given subcommand(s)
+
+Options:
+      --json     Machine-readable JSON output
+  -v, --verbose  More logging (upstream request log)
+  -q, --quiet    Only errors
+  -h, --help     Print help
+```
+
 ---
 
 # `--json` contract (schema_version 1)
@@ -336,6 +357,8 @@ Machine-readable schemas (JSON Schema 2020-12) live in [`docs/schemas/`](schemas
 | `ghost attack --events f` | [`attack`](schemas/attack.schema.json) | `sends[]{index, linked, linked_by[], same_connection, sync_then_send, same_ip, tip_to_send_s}`, `rate` (percent), `sync_sessions`, `fingerprint_linked_sessions`, `median_tip_to_send_s` |
 | `ghost report --attack …` | [`report-attack`](schemas/report-attack.schema.json) | `out`, `before`, `after`, `nym` (analyses as above) |
 | `ghost report --before d --after d` | [`report`](schemas/report.schema.json) | `out` |
+| `ghost proof create` | [`proof-create`](schemas/proof-create.schema.json) | `proof` (`zecproof1…`), `txid`, `pool`, `action_index`, `height`, `recipient`, `value_zat`, `memo`, `msg` |
+| `ghost proof verify <p>` | [`proof-verify`](schemas/proof-verify.schema.json) | `valid`; if valid: `recipient`, `value_zat`, `memo`, `height`, `msg`, `msg_signed:false`, `explorer[]`; else `reason` (exit 1) |
 | `ghost dashboard` (first line) | [`dashboard`](schemas/dashboard.schema.json) | `url`, `events` |
 
 `ghost dashboard` also serves `GET /api/state` (`schema_version` 1): `now_ms`, `server_sees`, `queue[]`,
@@ -735,6 +758,154 @@ Breaking changes bump `schema_version`; new fields may be added within a version
     }
   },
   "title": "ghost --json pay"
+}
+```
+
+### proof-create.schema.json
+
+```json
+{
+  "$schema": "https://json-schema.org/draft/2020-12/schema",
+  "type": "object",
+  "required": [
+    "schema_version",
+    "ok",
+    "proof",
+    "txid",
+    "pool",
+    "action_index",
+    "height",
+    "recipient",
+    "value_zat",
+    "memo",
+    "msg"
+  ],
+  "properties": {
+    "schema_version": {
+      "const": 1
+    },
+    "ok": {
+      "type": "boolean"
+    },
+    "proof": {
+      "type": "string",
+      "pattern": "^zecproof1[A-Za-z0-9_-]+$"
+    },
+    "txid": {
+      "type": "string",
+      "pattern": "^[0-9a-f]{64}$"
+    },
+    "pool": {
+      "enum": [
+        "ironwood",
+        "orchard"
+      ]
+    },
+    "action_index": {
+      "type": "integer"
+    },
+    "height": {
+      "type": "integer"
+    },
+    "recipient": {
+      "type": "string"
+    },
+    "value_zat": {
+      "type": "integer"
+    },
+    "memo": {
+      "type": "string"
+    },
+    "msg": {
+      "type": "string"
+    }
+  },
+  "title": "ghost --json proof create"
+}
+```
+
+### proof-verify.schema.json
+
+```json
+{
+  "$schema": "https://json-schema.org/draft/2020-12/schema",
+  "type": "object",
+  "required": [
+    "schema_version",
+    "ok",
+    "valid"
+  ],
+  "properties": {
+    "schema_version": {
+      "const": 1
+    },
+    "ok": {
+      "type": "boolean"
+    },
+    "valid": {
+      "type": "boolean"
+    },
+    "reason": {
+      "type": "string"
+    },
+    "txid": {
+      "type": "string"
+    },
+    "height": {
+      "type": "integer"
+    },
+    "pool": {
+      "type": "string"
+    },
+    "action_index": {
+      "type": "integer"
+    },
+    "recipient": {
+      "type": "string"
+    },
+    "value_zat": {
+      "type": "integer"
+    },
+    "memo": {
+      "type": "string"
+    },
+    "msg": {
+      "type": "string"
+    },
+    "msg_signed": {
+      "const": false
+    },
+    "explorer": {
+      "type": "array",
+      "items": {
+        "type": "string"
+      }
+    }
+  },
+  "title": "ghost --json proof verify",
+  "if": {
+    "properties": {
+      "valid": {
+        "const": true
+      }
+    }
+  },
+  "then": {
+    "required": [
+      "txid",
+      "height",
+      "recipient",
+      "value_zat",
+      "memo",
+      "msg_signed",
+      "explorer"
+    ]
+  },
+  "else": {
+    "required": [
+      "reason"
+    ]
+  }
 }
 ```
 

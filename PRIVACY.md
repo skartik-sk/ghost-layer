@@ -23,6 +23,10 @@
 | `ghost dashboard` | serves **127.0.0.1 only** (refuses other listen addresses and non-loopback peers), embedded page, no external requests (strict CSP), GET-only. It shows the queue, event log analysis and exit IPs (your own IP masked). Anyone with access to your machine's loopback can view it while it runs. |
 | `ghost mcp` | a local stdio process started by your MCP client; read-only tools by default. `ghost_pay` only if you start it with `--allow-pay` and caps; the wallet and identity are fixed by you at startup, never chosen by the agent. Tool results (txids, statuses, exit IPs) go to the AI model provider your client uses. |
 
+### ZecProof (`ghost proof`)
+
+"Invisible by default, provable by choice." A proof reveals **exactly one output** (recipient, amount, memo, height) to whoever sees it, and nothing else about your wallet. It is built from that output's one-time outgoing cipher key (OCK); your **OVK/UFVK never leaves your machine** and is not in the proof. A proof shows that a payment happened, **not who presents it** (anyone holding the string can show it). The optional message is a label, **not signed**.
+
 ## 3. What must users trust?
 
 The light-wallet server for data integrity (Ghost Layer checks cells are contiguous and hash-linked, but cannot validate consensus); the Ghost Layer code; the wallet (keys never leave it); Nym, if enabled; their own machine and OS.

@@ -37,6 +37,7 @@ Ghost Layer is a small local gateway between any lightwalletd-compatible wallet 
 | `ghost pay` (one command) | real payment with memo; receiver's viewing key decrypts amount **and memo**; `--json` output validated by `cargo test` | [`evidence/pay_demo.md`](evidence/pay_demo.md) |
 | Queue mode + restart-resume | `--send-mode queue`: wallet returns in 3.6 s, `ghost status` tracks the real outcome; killed with a tx queued → restart gives a **fresh** random delay, sent **exactly once**, mined | [`evidence/p2/README.md`](evidence/p2/README.md) |
 | `ghost verify --ufvk` | read-only decryption of Ironwood outputs with a viewing key (incoming / outgoing / change; negative control) | [`evidence/ufvk_verify.md`](evidence/ufvk_verify.md) |
+| **ZecProof** | a real proof for our `ghost pay` payment verifies (0.001 TAZ, memo, height); tampered OCK, other tx/action, mainnet claim and receiver's key are all rejected | [`evidence/zecproof.md`](evidence/zecproof.md) |
 | MCP server | a real MCP client (Claude Code) calls `ghost_status` + `ghost_verify` and answers from real data; `ghost_pay` caps refuse over-limit/mainnet | [`evidence/mcp_demo.md`](evidence/mcp_demo.md) |
 | **Real testnet payments** | before (direct): [`4d8f96ec…126b4970`](https://testnet.zcashexplorer.app/transactions/4d8f96ec56cd36871d6611e8fbe72cfc37cd7e9730d32cafeb2992fa126b4970), mined at 4582106 · **after (Ghost Layer + Nym)**: [`09f0f0b0…2bd3ce69`](https://testnet.zcashexplorer.app/transactions/09f0f0b01942a658197f65563a977c66fc19f8823268b0e547470e022bd3ce69), mined at 4582118: sync via one Nym exit, broadcast on a fresh connection via another after a 16.3 s random delay | [`evidence/testnet_tx.md`](evidence/testnet_tx.md) |
 
@@ -76,6 +77,7 @@ All commands accept `--json`. Exit codes: `0` ok, `1` runtime failure (or "not m
 | Command | Purpose |
 |---|---|
 | `ghost pay` | one-command private payment: gateway → sync → send (random delay, fresh connection) → mined → explorer links |
+| `ghost proof create / verify` | **ZecProof**: prove ONE payment you sent (`zecproof1…`), revealing only that output; anyone can verify it against the chain |
 | `ghost dashboard` | live local page on `127.0.0.1:9070` (loopback only): what the server sees, queue countdowns, grid, attacker view, before/after |
 | `ghost mcp` | MCP server (stdio) for AI agents: read-only tools; `ghost_pay` only with `--allow-pay` + caps |
 | `ghost up` | gateway on `127.0.0.1:9067` (loopback only unless `--allow-remote`); `--broadcast-server` to broadcast via a different server than you sync from |

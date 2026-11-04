@@ -17,6 +17,7 @@ use clap::{Parser, Subcommand};
 mod dashboard;
 mod mcp;
 mod viewkey;
+mod zecproof;
 mod pay;
 use ghost_transport::proto::{ChainSpec, Empty, TxFilter};
 use ghost_transport::{Transport, Upstream};
@@ -51,6 +52,9 @@ enum Cmd {
     Dashboard(dashboard::DashArgs),
     /// MCP server (stdio) for AI agents: read-only tools; ghost_pay only with --allow-pay + caps
     Mcp(mcp::McpArgs),
+    /// ZecProof: prove ONE payment you sent (create) or check a proof (verify)
+    #[command(subcommand)]
+    Proof(zecproof::ProofCmd),
     /// Plain-language explanation of the three leaks and what Ghost Layer closes
     Explain,
     /// Linkage heuristics over an observer log (ShadeCheck events.jsonl) — the attacker's view
@@ -262,6 +266,7 @@ async fn run(cli: Cli) -> Result<u8, Fail> {
         Cmd::Up(a) => up(a, cli.json).await,
         Cmd::Status => status(cli.json).await,
         Cmd::Pay(a) => pay::pay(a, cli.json).await,
+        Cmd::Proof(c) => zecproof::run(c, cli.json).await,
         Cmd::Dashboard(a) => dashboard::dashboard(a, cli.json).await,
         Cmd::Mcp(a) => mcp::mcp(a).await,
         Cmd::Explain => {

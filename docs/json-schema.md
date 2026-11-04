@@ -30,6 +30,8 @@ Machine-readable schemas (JSON Schema 2020-12) live in [`docs/schemas/`](schemas
 | `ghost attack --events f` | [`attack`](schemas/attack.schema.json) | `sends[]{index, linked, linked_by[], same_connection, sync_then_send, same_ip, tip_to_send_s}`, `rate` (percent), `sync_sessions`, `fingerprint_linked_sessions`, `median_tip_to_send_s` |
 | `ghost report --attack …` | [`report-attack`](schemas/report-attack.schema.json) | `out`, `before`, `after`, `nym` (analyses as above) |
 | `ghost report --before d --after d` | [`report`](schemas/report.schema.json) | `out` |
+| `ghost proof create` | [`proof-create`](schemas/proof-create.schema.json) | `proof` (`zecproof1…`), `txid`, `pool`, `action_index`, `height`, `recipient`, `value_zat`, `memo`, `msg` |
+| `ghost proof verify <p>` | [`proof-verify`](schemas/proof-verify.schema.json) | `valid`; if valid: `recipient`, `value_zat`, `memo`, `height`, `msg`, `msg_signed:false`, `explorer[]`; else `reason` (exit 1) |
 | `ghost dashboard` (first line) | [`dashboard`](schemas/dashboard.schema.json) | `url`, `events` |
 
 `ghost dashboard` also serves `GET /api/state` (`schema_version` 1): `now_ms`, `server_sees`, `queue[]`,
