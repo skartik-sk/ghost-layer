@@ -21,3 +21,4 @@ tracing.workspace = true
 tracing-subscriber.workspace = true
 ghost-core = { path = "../ghost-core" }
 hex.workspace = true
+ghost-attacker = { path = "../ghost-attacker" }

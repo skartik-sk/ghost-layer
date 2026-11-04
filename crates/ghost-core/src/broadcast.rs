@@ -107,7 +107,7 @@ impl Queue {
                conn_id INTEGER, transport TEXT, endpoint TEXT, error_code INTEGER, error_message TEXT);",
         )?;
         // Privacy mode the tx was queued under ("nym" or "direct"); older dbs lack the column.
-        let _ = db.execute("ALTER TABLE broadcasts ADD COLUMN mode TEXT NOT NULL DEFAULT 'direct'", []);
+        let _ = db.execute("ALTER TABLE broadcasts ADD COLUMN mode TEXT NOT NULL DEFAULT 'unknown'", []);
         Ok(Self { db: Mutex::new(db) })
     }
 
@@ -198,9 +198,9 @@ impl<B: Broadcaster> Scheduler<B> {
     /// is never sent by a direct-mode run: it stays pending (returned as `held`).
     pub fn resume(self: &Arc<Self>) -> anyhow::Result<(usize, usize)> {
         let (pending, held): (Vec<_>, Vec<_>) =
-            self.queue.pending()?.into_iter().partition(|(_, _, _, mode)| !(mode == "nym" && self.mode != "nym"));
+            self.queue.pending()?.into_iter().partition(|(_, _, _, mode)| self.mode == "nym" || mode == "direct");
         for (txid, ..) in &held {
-            warn!(target: "broadcast", %txid, "queued under Nym; NOT sending in direct mode. Restart with --nym to send it");
+            warn!(target: "broadcast", %txid, "queued under Nym (or unknown mode); NOT sending in direct mode. Restart with --nym to send it");
         }
         for (txid, raw, at, _) in &pending {
             // An overdue tx must not go out the instant we restart (and never together with other

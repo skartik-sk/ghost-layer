@@ -831,6 +831,11 @@ dependencies = [
 [[package]]
 name = "ghost-attacker"
 version = "0.1.0"
+dependencies = [
+ "anyhow",
+ "serde",
+ "serde_json",
+]
 
 [[package]]
 name = "ghost-cli"
@@ -838,6 +843,7 @@ version = "0.1.0"
 dependencies = [
  "anyhow",
  "clap",
+ "ghost-attacker",
  "ghost-core",
  "ghost-gateway",
  "ghost-transport",
