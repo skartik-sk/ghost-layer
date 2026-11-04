@@ -102,7 +102,7 @@ All commands accept `--json`. Exit codes: `0` ok, `1` runtime failure (or "not m
 The demo **receiving** wallet's viewing key (testnet only; it can decrypt, never spend) is in [`evidence/ufvk_verify.md`](evidence/ufvk_verify.md):
 
 ```bash
-target/release/ghost verify --ufvk "$(sed -n '/^uviewtest1/p' evidence/ufvk_verify.md)" 09f0f0b01942a658197f65563a977c66fc19f8823268b0e547470e022bd3ce69
+target/release/ghost verify --ufvk-file <(sed -n '/^uviewtest1/p' evidence/ufvk_verify.md) 09f0f0b01942a658197f65563a977c66fc19f8823268b0e547470e022bd3ce69
 # ✅ mined at height 4582118 … 🔑 ironwood incoming — 0.00100000 TAZ (100000 zat)
 ```
 
@@ -169,6 +169,9 @@ Crates: `ghost-core` (grid planner + broadcast scheduler + upstream event log, n
 | rusqlite (bundled), clap, serde_json, tracing | 0.41.1, 4.6.7, 1.0.154, 0.1.44 |
 | lightwallet protocol (vendored `proto/`) | `zcash/lightwallet-protocol` @ `ec53075` (2026-10-22; Ironwood fields + `GetStandardFee`) |
 | `zcash_primitives` / `zcash_protocol` (ZIP-244 txid, NU7) | librustzcash @ `eb38d7a3` (same rev as zcash-devtool) |
+| `zcash_client_backend` / `zcash_keys` (UFVK decryption, `verify --ufvk`) | librustzcash @ `eb38d7a3` (0.25.0-pre.2 / 0.17.0-pre.2) |
+| `orchard` / `zcash_note_encryption` (ZecProof: OCK, `NoteEncryptionDomain<IronwoodVersion>`) | 0.16.0 / 0.5.1 |
+| `base64` (ZecProof encoding) | 0.23.1 |
 | `nym-swizzle-zcash` (grid) | nymtech/nym `develop` @ `e416f724` |
 | `nym-socks5-client` | 1.1.88, built from nymtech/nym @ `e416f724` |
 | zcash-devtool (demo wallet) | zcash/zcash-devtool @ `0b3436b` (`--features regtest_support` for local runs) |
@@ -192,7 +195,7 @@ No code was copied from these projects; zecmix's README informed the Nym setup (
 
 ## Limitations
 
-See [PRIVACY.md](PRIVACY.md). In short: tree-state/subtree heights, the pool-type filter and transparent-address queries still reach the server; the tip grid cell is partial; without Nym the server sees your IP on both paths; ShadeCheck SC-002 (as implemented) flags every broadcast, so we don't claim to pass it; a PASS is never proof of anonymity.
+See [PRIVACY.md](PRIVACY.md). In short: tree-state/subtree heights, the pool-type filter and transparent-address queries still reach the server; the tip grid cell is partial; with `--direct` (opting out of the default Nym) the server sees your IP on both paths; Nym exits can degrade (re-init picks fresh ones; Ghost fails closed meanwhile); a ZecProof's message is an unsigned label; ShadeCheck SC-002 (as implemented) flags every broadcast, so we don't claim to pass it; a PASS is never proof of anonymity.
 
 ## Scripts
 
