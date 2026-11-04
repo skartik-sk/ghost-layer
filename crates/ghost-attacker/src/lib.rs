@@ -78,14 +78,18 @@ pub fn analyze(path: &Path, threshold_s: f64, single_source_ip: bool) -> anyhow:
         events.iter().filter(|e| is_sync(&e.method)).map(|e| e.session.as_str()).collect();
     let all_sessions: HashSet<&str> = events.iter().map(|e| e.session.as_str()).collect();
 
-    // "Reached tip" moments: a GetBlockRange response carrying the highest height seen so far
-    // (from GetLatestBlock responses or block ranges).
+    // "Reached tip" moments: a GetLatestBlock response, or a GetBlockRange response carrying the
+    // highest height seen so far.
     let mut best: u64 = 0;
     let mut tip_times: Vec<u64> = Vec::new();
     for e in &events {
         let h = e.metadata.get("height").and_then(|v| v.as_u64());
         match (e.method.as_str(), e.phase.as_str(), h) {
-            ("GetLatestBlock", "response", Some(h)) => best = best.max(h),
+            // A wallet that learns the tip (already synced) has reached it just the same.
+            ("GetLatestBlock", "response", Some(h)) => {
+                best = best.max(h);
+                tip_times.push(e.timestamp_ns);
+            }
             ("GetBlockRange", "response", Some(h)) if h >= best => {
                 best = h;
                 tip_times.push(e.timestamp_ns);

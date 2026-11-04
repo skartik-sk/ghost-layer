@@ -256,7 +256,9 @@ async fn up(a: UpArgs, json: bool) -> Result<u8, Fail> {
     let (sync, bcast) = a.nym.transports(upstream.clone(), bcast_upstream.clone())?;
     let broadcaster = FreshConnBroadcaster { transport: bcast };
     let scheduler = Scheduler::new(open_queue()?, policy, broadcaster, if a.nym.nym { "nym" } else { "direct" });
-    let cache = BlockCache::open(&data_dir().join("blocks.sqlite"))
+    // One cache per upstream server: blocks from different chains must never mix.
+    let cache_name = format!("blocks-{}-{}.sqlite", upstream.host.replace(|c: char| !c.is_ascii_alphanumeric(), "_"), upstream.port);
+    let cache = BlockCache::open(&data_dir().join(cache_name))
         .map_err(|e| Fail::runtime(format!("cannot open block cache: {e:#}"), "check that ~/.ghost-layer is writable"))?;
     let gw = ghost_gateway::Gateway::connect(&sync, scheduler.clone(), send_mode, cache).await.map_err(|e| {
         Fail::runtime(format!("cannot reach upstream {}: {e:#}", upstream.uri()), "run `ghost doctor` to diagnose")
