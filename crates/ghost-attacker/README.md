@@ -45,6 +45,7 @@ Ghost Layer is a small local gateway between any lightwalletd-compatible wallet 
 
 ```bash
 cargo build --release                       # Rust ≥ 1.85 + protoc → target/release/ghost
+                                            # (crates.io-ready: `cargo publish --workspace --dry-run` passes; see AGENTS.md)
 NYM_SOCKS5=/path/to/nym-socks5-client scripts/nym_setup.sh up   # optional: Nym (build from github.com/nymtech/nym)
 
 # a zcash-devtool testnet wallet (github.com/zcash/zcash-devtool); keys stay in it
@@ -167,7 +168,7 @@ Crates: `ghost-core` (grid planner + broadcast scheduler + upstream event log, n
 | tonic / tonic-prost / prost | 0.14.9 / 0.14.9 / 0.14.4 |
 | tokio, tokio-socks, tokio-rustls, rustls (ring), webpki-roots | 1.54, 0.5.3, 0.26.6, 0.23, 1.0.11 |
 | rusqlite (bundled), clap, serde_json, tracing | 0.41.1, 4.6.7, 1.0.154, 0.1.44 |
-| lightwallet protocol (vendored `proto/`) | `zcash/lightwallet-protocol` @ `ec53075` (2026-10-22; Ironwood fields + `GetStandardFee`) |
+| lightwallet protocol (vendored `crates/ghost-transport/proto/`) | `zcash/lightwallet-protocol` @ `ec53075` (2026-10-22; Ironwood fields + `GetStandardFee`) |
 | `zcash_primitives` / `zcash_protocol` (ZIP-244 txid, NU7) | librustzcash @ `eb38d7a3` (same rev as zcash-devtool) |
 | `zcash_client_backend` / `zcash_keys` (UFVK decryption, `verify --ufvk`) | librustzcash @ `eb38d7a3` (0.25.0-pre.2 / 0.17.0-pre.2) |
 | `orchard` / `zcash_note_encryption` (ZecProof: OCK, `NoteEncryptionDomain<IronwoodVersion>`) | 0.16.0 / 0.5.1 |
