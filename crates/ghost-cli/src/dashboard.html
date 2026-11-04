@@ -1,0 +1,408 @@
+<!doctype html>
+<html lang="en">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<title>Ghost Layer</title>
+<style>
+:root {
+  --bg: #f5f6f8; --card: #ffffff; --text: #15171c; --muted: #646b78; --border: #e1e4ea;
+  --good: #11763a; --good-bg: #e2f5e9; --bad: #b42318; --bad-bg: #fde7e4;
+  --warn: #8f5600; --warn-bg: #fff2d4; --accent: #4f46e5; --track: #d9dde5;
+  --mono: ui-monospace, SFMono-Regular, Menlo, Consolas, "Liberation Mono", monospace;
+}
+@media (prefers-color-scheme: dark) {
+  :root:not([data-theme="light"]), :root[data-theme="dark"] {
+    --bg: #0d1015; --card: #161a21; --text: #e6e9ef; --muted: #8b93a1; --border: #2a303b;
+    --good: #5fd38a; --good-bg: #123323; --bad: #ff8a80; --bad-bg: #3a1716;
+    --warn: #f3bd55; --warn-bg: #3a2c10; --accent: #9b97ff; --track: #343b48;
+  }
+}
+* { box-sizing: border-box; }
+html, body { margin: 0; }
+body {
+  font-family: system-ui, -apple-system, "Segoe UI", Roboto, "Helvetica Neue", Arial, sans-serif;
+  background: var(--bg); color: var(--text); font-size: 15px; line-height: 1.45;
+  padding: 16px; min-width: 0; overflow-wrap: anywhere;
+}
+a { color: var(--accent); }
+header { display: flex; flex-wrap: wrap; align-items: center; justify-content: space-between; gap: 8px; margin: 0 0 16px; }
+h1 { font-size: 20px; margin: 0; }
+.status { font-size: 13px; color: var(--muted); display: flex; align-items: center; gap: 6px; }
+.dot { width: 10px; height: 10px; border-radius: 50%; background: var(--track); display: inline-block; }
+.dot.ok { background: var(--good); }
+.dot.bad { background: var(--bad); }
+.cards { display: grid; gap: 16px; grid-template-columns: repeat(auto-fit, minmax(min(100%, 300px), 1fr)); }
+.card { background: var(--card); border: 1px solid var(--border); border-radius: 12px; padding: 16px; min-width: 0; }
+.card h2 { font-size: 13px; margin: 0 0 12px; color: var(--muted); text-transform: uppercase; letter-spacing: .05em; }
+.muted { color: var(--muted); }
+.small { font-size: 12px; }
+.good { color: var(--good); }
+.bad { color: var(--bad); }
+.warn { color: var(--warn); }
+.mono { font-family: var(--mono); }
+.inline { display: flex; flex-wrap: wrap; gap: 6px 10px; align-items: center; }
+.pill { display: inline-block; padding: 2px 8px; border-radius: 999px; font-size: 12px; font-weight: 600; background: var(--track); color: var(--text); white-space: nowrap; }
+.pill.good { background: var(--good-bg); color: var(--good); }
+.pill.bad { background: var(--bad-bg); color: var(--bad); }
+.pill.warn { background: var(--warn-bg); color: var(--warn); }
+.verdict { padding: 10px 12px; border-radius: 8px; margin: 12px 0; font-weight: 600; }
+.verdict.good { background: var(--good-bg); color: var(--good); }
+.verdict.bad { background: var(--bad-bg); color: var(--bad); }
+.verdict.warn { background: var(--warn-bg); color: var(--warn); }
+.ips { display: grid; gap: 12px; grid-template-columns: repeat(auto-fit, minmax(130px, 1fr)); }
+.label { font-size: 12px; color: var(--muted); }
+.ip { font-family: var(--mono); font-size: 16px; word-break: break-all; }
+.big { font-size: 32px; font-weight: 700; line-height: 1.1; }
+.row { padding: 10px 0; border-top: 1px solid var(--border); }
+.row:first-child { border-top: 0; padding-top: 0; }
+.countdown { font-weight: 600; color: var(--warn); font-variant-numeric: tabular-nums; }
+.err { color: var(--bad); font-size: 13px; }
+.bar { height: 6px; border-radius: 3px; background: var(--track); overflow: hidden; margin-top: 4px; }
+.bar span { display: block; height: 100%; background: var(--good); }
+.bar span.bad { background: var(--bad); }
+.ranges { display: flex; flex-direction: column; gap: 8px; margin-top: 12px; }
+.ba { display: flex; align-items: center; justify-content: center; gap: 14px; flex-wrap: wrap; text-align: center; }
+.arrow { font-size: 28px; color: var(--muted); }
+.links { display: flex; flex-wrap: wrap; gap: 4px 12px; margin-top: 4px; font-size: 13px; }
+.counts { display: flex; gap: 28px; }
+</style>
+</head>
+<body>
+<header>
+  <h1>👻 Ghost Layer — what the server sees</h1>
+  <div class="status"><span class="dot" id="dot"></span><span id="age">connecting…</span></div>
+</header>
+
+<main class="cards">
+  <section class="card">
+    <h2>What the server sees</h2>
+    <div id="sees"><p class="muted">loading…</p></div>
+  </section>
+
+  <section class="card">
+    <h2>Broadcast queue</h2>
+    <div id="queue"><p class="muted">loading…</p></div>
+  </section>
+
+  <section class="card">
+    <h2>Sync grid</h2>
+    <div id="grid"><p class="muted">loading…</p></div>
+  </section>
+
+  <section class="card">
+    <h2>Attacker view</h2>
+    <div id="attacker"><p class="muted">loading…</p></div>
+  </section>
+
+  <section class="card">
+    <h2>Before vs after</h2>
+    <div id="before"><p class="muted">loading…</p></div>
+  </section>
+</main>
+
+<script>
+(function () {
+  'use strict';
+
+  var POLL_MS = 2000;
+  var TICK_MS = 250;
+  var POLL_TIMEOUT_MS = 1500;
+
+  var state = null;       // last good /api/state payload
+  var fetchedPerf = 0;    // performance.now() when state was received
+  var fetchedAt = 0;      // Date.now() when state was received
+  var failed = false;     // last fetch failed
+  var countdowns = [];    // live countdown nodes: {node, sched}
+
+  function $(id) { return document.getElementById(id); }
+
+  function el(tag, cls, text) {
+    var n = document.createElement(tag);
+    if (cls) n.className = cls;
+    if (text !== undefined && text !== null) n.textContent = String(text);
+    return n;
+  }
+
+  function add(parent) {
+    for (var i = 1; i < arguments.length; i++) {
+      if (arguments[i]) parent.appendChild(arguments[i]);
+    }
+    return parent;
+  }
+
+  function empty(node) {
+    while (node.firstChild) node.removeChild(node.firstChild);
+  }
+
+  function placeholder(text) {
+    return el('p', 'muted', text || 'no data yet');
+  }
+
+  function isNum(v) { return typeof v === 'number' && isFinite(v); }
+  function num(v) { return isNum(v) ? String(v) : '—'; }
+  function secs(ms) { return (ms / 1000).toFixed(1) + ' s'; }
+
+  function shortTxid(t) {
+    t = String(t || '');
+    return t.length > 18 ? t.slice(0, 10) + '…' + t.slice(-6) : t;
+  }
+
+  // Only http(s) links are rendered, so a hostile value cannot become a javascript: URL.
+  function safeUrl(u) {
+    try {
+      var p = new URL(String(u));
+      return (p.protocol === 'https:' || p.protocol === 'http:') ? p.href : null;
+    } catch (e) {
+      return null;
+    }
+  }
+
+  // Server clock at the moment of the last fetch, advanced by local elapsed time.
+  function serverNow() {
+    return isNum(state.now_ms) ? state.now_ms + (performance.now() - fetchedPerf) : Date.now();
+  }
+
+  function pillClass(status) {
+    if (status === 'accepted') return 'good';
+    if (status === 'pending') return 'warn';
+    if (status === 'rejected' || status === 'failed') return 'bad';
+    return '';
+  }
+
+  // ---- Section 1: what the server sees -------------------------------------
+  function ipBlock(label, ip, exit) {
+    return add(el('div'), el('div', 'label', label), el('div', 'ip', ip || '—'), el('div', 'muted small', exit || ''));
+  }
+
+  function renderSees(s) {
+    var box = $('sees');
+    empty(box);
+    if (!s) { add(box, placeholder()); return; }
+
+    var verdict;
+    if (s.sync_ip && s.broadcast_ip && s.sync_ip !== s.broadcast_ip) {
+      verdict = el('p', 'verdict good', '✓ Cannot link by IP: sync and broadcast use different exits.');
+    } else if (s.sync_ip && s.broadcast_ip) {
+      verdict = el('p', 'verdict bad', '✗ Same IP for sync and broadcast: linkable by IP.');
+    } else {
+      verdict = placeholder('IP comparison not available yet');
+    }
+
+    var nymPill = s.nym === true ? el('span', 'pill good', 'Nym on')
+      : s.nym === false ? el('span', 'pill warn', 'Nym off')
+      : el('span', 'pill', 'Nym unknown');
+
+    add(box,
+      add(el('div', 'inline'), nymPill, el('span', 'muted small', 'Your IP: ' + (s.your_ip_masked || '—'))),
+      verdict,
+      s.nym === false ? el('p', 'verdict warn', 'Direct mode: both sync and broadcast reveal your IP to the server.') : null,
+      add(el('div', 'ips'),
+        ipBlock('Sync IP', s.sync_ip, s.sync_exit),
+        ipBlock('Broadcast IP', s.broadcast_ip, s.broadcast_exit)),
+      s.error ? el('p', 'err', 'Error: ' + s.error) : null
+    );
+  }
+
+  // ---- Section 2: broadcast queue ------------------------------------------
+  function txRow(tx) {
+    var status = String(tx.status || 'unknown');
+    var row = el('div', 'row');
+    var id = el('span', 'mono', shortTxid(tx.txid));
+    id.title = String(tx.txid || '');
+    add(row, add(el('div', 'inline'), id,
+      el('span', 'pill ' + pillClass(status), status),
+      tx.mode ? el('span', 'muted small', tx.mode) : null));
+
+    if (status === 'pending' && isNum(tx.scheduled_at_ms)) {
+      var cd = el('div', 'countdown', '');
+      countdowns.push({ node: cd, sched: tx.scheduled_at_ms });
+      add(row, cd);
+    }
+    if (isNum(tx.received_at_ms) && isNum(tx.scheduled_at_ms)) {
+      add(row, el('div', 'muted small', 'random delay ' + secs(tx.scheduled_at_ms - tx.received_at_ms)));
+    }
+    if (isNum(tx.conn_id)) {
+      add(row, el('div', 'small', 'fresh connection #' + tx.conn_id + (tx.transport ? ' via ' + tx.transport : '')));
+    }
+    if (tx.endpoint) add(row, el('div', 'muted small mono', tx.endpoint));
+    if (tx.error_message) add(row, el('div', 'err', tx.error_message));
+
+    if (Array.isArray(tx.explorer) && tx.explorer.length) {
+      var links = el('div', 'links');
+      tx.explorer.forEach(function (u) {
+        var href = safeUrl(u);
+        if (!href) return;
+        var a = el('a', '', 'explorer · ' + new URL(href).host + ' ↗');
+        a.href = href;
+        a.rel = 'noopener noreferrer';
+        a.target = '_blank';
+        links.appendChild(a);
+      });
+      add(row, links);
+    }
+    return row;
+  }
+
+  function renderQueue(q) {
+    var box = $('queue');
+    empty(box);
+    if (!Array.isArray(q) || !q.length) {
+      add(box, placeholder(Array.isArray(q) ? 'no transactions queued' : null));
+      return;
+    }
+    q.forEach(function (tx) { add(box, txRow(tx)); });
+  }
+
+  // ---- Section 3: sync grid ------------------------------------------------
+  function renderGrid(g) {
+    var box = $('grid');
+    empty(box);
+    if (!g) { add(box, placeholder()); return; }
+
+    add(box, add(el('div', 'counts'),
+      add(el('div'), el('div', 'big good', num(g.aligned)), el('div', 'muted small', 'aligned')),
+      add(el('div'), el('div', 'big bad', num(g.unaligned)), el('div', 'muted small', 'unaligned'))));
+
+    var ranges = Array.isArray(g.ranges) ? g.ranges.slice(-10).reverse() : [];
+    if (!ranges.length) { add(box, placeholder('no ranges yet')); return; }
+
+    var maxSpan = 1;
+    ranges.forEach(function (r) {
+      if (isNum(r.start) && isNum(r.end)) maxSpan = Math.max(maxSpan, r.end - r.start);
+    });
+
+    var list = el('div', 'ranges');
+    ranges.forEach(function (r) {
+      var span = isNum(r.start) && isNum(r.end) ? r.end - r.start : 0;
+      var pct = Math.max(2, Math.round((span / maxSpan) * 100));
+      var fill = el('span', r.aligned ? '' : 'bad');
+      fill.style.width = pct + '%';
+      add(list, add(el('div'),
+        add(el('div', 'inline'),
+          el('span', 'mono small', num(r.start) + ' .. ' + num(r.end)),
+          el('span', 'pill ' + (r.aligned ? 'good' : 'bad'), r.aligned ? 'aligned' : 'unaligned'),
+          isNum(r.conn) ? el('span', 'muted small', 'conn ' + r.conn) : null),
+        add(el('div', 'bar'), fill)));
+    });
+    add(box, list);
+  }
+
+  // ---- Section 4: attacker view --------------------------------------------
+  function sendRow(x) {
+    var by = Array.isArray(x.linked_by) ? x.linked_by.map(String) : [];
+    var flags = [];
+    if (x.same_ip) flags.push('same IP');
+    if (x.same_connection) flags.push('same connection');
+    if (x.sync_then_send) flags.push('sync-then-send');
+
+    var verdict = x.linked === true
+      ? el('span', 'pill bad', 'LINKED ❌' + (by.length ? ' (' + by.join(', ') + ')' : ''))
+      : el('span', 'pill good', 'NOT LINKED ✅');
+    var tip = isNum(x.tip_to_send_s) ? x.tip_to_send_s.toFixed(1) + ' s' : '—';
+
+    return add(el('div', 'row'),
+      add(el('div', 'inline'), el('strong', '', 'Payment #' + num(x.index)), verdict),
+      el('div', 'muted small', 'tip → send: ' + tip + (flags.length ? ' · ' + flags.join(', ') : '')));
+  }
+
+  function renderAttacker(a) {
+    var box = $('attacker');
+    empty(box);
+    if (!a) { add(box, placeholder()); return; }
+
+    // rate is treated as a fraction when <= 1, otherwise as a percentage.
+    var rate = isNum(a.rate) ? (a.rate <= 1 ? a.rate * 100 : a.rate) : null;
+    add(box,
+      el('div', 'big', rate === null ? '—' : rate.toFixed(1) + '%'),
+      el('div', 'muted small', 'overall linkage rate'),
+      el('p', 'muted small', num(a.sync_sessions) + ' sync sessions · ' + num(a.fingerprint_linked_sessions) +
+        ' fingerprint-linked · threshold ' + num(a.threshold_s) + ' s'));
+
+    if (!Array.isArray(a.sends) || !a.sends.length) {
+      add(box, placeholder('no payments analyzed yet'));
+      return;
+    }
+    a.sends.forEach(function (x) { add(box, sendRow(x)); });
+  }
+
+  // ---- Section 5: before vs after ------------------------------------------
+  function pct(v) { return isNum(v) ? (Math.round(v * 10) / 10) + '%' : '—'; }
+
+  function renderBefore(b) {
+    var box = $('before');
+    empty(box);
+    if (!b) { add(box, placeholder()); return; }
+
+    add(box,
+      add(el('div', 'ba'),
+        add(el('div'), el('div', 'big muted', pct(b.before_rate)), el('div', 'small muted', 'before')),
+        el('span', 'arrow', '→'),
+        add(el('div'), el('div', 'big good', pct(b.after_rate)), el('div', 'small muted', 'after'))),
+      el('p', 'muted small', 'N = ' + num(b.before_n) + ' before, ' + num(b.after_n) + ' after'),
+      b.source ? el('p', 'muted small', 'Source: ' + b.source) : null);
+  }
+
+  // ---- Header status, rendering, polling -----------------------------------
+  function setStatus() {
+    $('dot').className = 'dot ' + (failed ? 'bad' : fetchedAt ? 'ok' : '');
+    $('age').textContent = !fetchedAt ? 'connecting…'
+      : 'updated ' + Math.round((Date.now() - fetchedAt) / 1000) + 's ago' +
+        (failed ? ' · server unreachable' : '');
+  }
+
+  function render() {
+    countdowns = [];
+    renderSees(state.server_sees);
+    renderQueue(state.queue);
+    renderGrid(state.grid);
+    renderAttacker(state.attacker);
+    renderBefore(state.before_after);
+    tick();
+  }
+
+  // Runs every 250 ms: live countdowns and the "updated Xs ago" label.
+  function tick() {
+    setStatus();
+    if (!state) return;
+    var now = serverNow();
+    countdowns.forEach(function (c) {
+      var left = c.sched - now;
+      c.node.textContent = left > 0 ? 'sends in ' + secs(left) : 'sending now…';
+    });
+  }
+
+  function poll() {
+    var ctrl = new AbortController();
+    var timer = setTimeout(function () { ctrl.abort(); }, POLL_TIMEOUT_MS);
+    fetch('/api/state', { cache: 'no-store', signal: ctrl.signal })
+      .then(function (r) {
+        if (!r.ok) throw new Error('HTTP ' + r.status);
+        return r.json();
+      })
+      .then(function (j) {
+        if (!j || typeof j !== 'object') throw new Error('bad payload');
+        state = j;
+        fetchedPerf = performance.now();
+        fetchedAt = Date.now();
+        failed = false;
+        render();
+      })
+      .catch(function (e) {
+        failed = true;
+        setStatus();
+        console.error('ghost-layer poll failed:', e);
+      })
+      .then(function () {
+        clearTimeout(timer);
+        setTimeout(poll, POLL_MS);
+      });
+  }
+
+  setStatus();
+  poll();
+  setInterval(tick, TICK_MS);
+})();
+</script>
+</body>
+</html>

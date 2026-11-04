@@ -1,0 +1,49 @@
+{
+  "$schema": "https://json-schema.org/draft/2020-12/schema",
+  "type": "object",
+  "required": [
+    "schema_version",
+    "ok",
+    "nym",
+    "your_ip",
+    "sync_path_ip",
+    "broadcast_path_ip",
+    "paths_unlinkable_by_ip"
+  ],
+  "properties": {
+    "schema_version": {
+      "const": 1
+    },
+    "ok": {
+      "type": "boolean"
+    },
+    "nym": {
+      "type": "boolean"
+    },
+    "your_ip": {
+      "type": "string"
+    },
+    "sync_path_ip": {
+      "type": "string"
+    },
+    "broadcast_path_ip": {
+      "type": "string"
+    },
+    "paths_unlinkable_by_ip": {
+      "type": "boolean"
+    },
+    "sync_exit": {
+      "type": [
+        "string",
+        "null"
+      ]
+    },
+    "broadcast_exit": {
+      "type": [
+        "string",
+        "null"
+      ]
+    }
+  },
+  "title": "ghost --json ip"
+}

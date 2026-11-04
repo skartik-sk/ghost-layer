@@ -8,8 +8,10 @@
 //! 2. **Sync-then-send** — the send arrived ≤ T s after some session reached the chain tip.
 //! 3. **Range fingerprint** — a sync session's first range start sits right after an earlier
 //!    session's last end (resume-point chaining), linking the sessions into one history.
-//! 4. **Same IP** — not observable from ShadeCheck logs (peer addresses are HMAC'd); the caller
-//!    states whether all traffic shared one source IP (true for local runs).
+//! 4. **Same IP** — from Ghost Layer's own event log, each connection's transport is known
+//!    (direct = your IP; nym-sync / nym-broadcast = two different Nym exits): a send is linked
+//!    if some sync connection used the same path. ShadeCheck logs hash peer addresses, so there
+//!    the caller states whether all traffic shared one source IP (true for local runs).
 
 use std::collections::{BTreeMap, HashSet};
 use std::path::Path;
@@ -77,6 +79,9 @@ pub fn analyze(path: &Path, threshold_s: f64, single_source_ip: bool) -> anyhow:
     let synced_sessions: HashSet<&str> =
         events.iter().filter(|e| is_sync(&e.method)).map(|e| e.session.as_str()).collect();
     let all_sessions: HashSet<&str> = events.iter().map(|e| e.session.as_str()).collect();
+    let transport = |e: &Event| e.metadata.get("transport").and_then(|v| v.as_str()).map(String::from);
+    let sync_transports: HashSet<String> =
+        events.iter().filter(|e| is_sync(&e.method)).filter_map(transport).collect();
 
     // "Reached tip" moments: a GetLatestBlock response, or a GetBlockRange response carrying the
     // highest height seen so far.
@@ -120,7 +125,10 @@ pub fn analyze(path: &Path, threshold_s: f64, single_source_ip: bool) -> anyhow:
             same_connection,
             sync_then_send,
             tip_to_send_s: gap,
-            same_ip: single_source_ip,
+            same_ip: match transport(e) {
+                Some(t) => sync_transports.contains(&t),
+                None => single_source_ip,
+            },
             linked: !linked_by.is_empty(),
             linked_by,
         });
@@ -181,27 +189,33 @@ fn secs(v: Option<f64>) -> String {
 }
 
 /// Markdown table comparing runs (before vs after), as in spec B6.2.
-pub fn markdown(before: &Analysis, after: &Analysis, nym_note: Option<&str>) -> String {
+pub fn markdown(before: &Analysis, after: &Analysis, nym: Option<&Analysis>, nym_note: Option<&str>) -> String {
     let t = before.threshold_s;
+    let n = |f: &dyn Fn(&Analysis) -> String| nym.map(f).unwrap_or_else(|| "—".into());
     let mut m = String::new();
     m.push_str("| Heuristic | Without Ghost Layer | With Ghost Layer (direct) | With Ghost Layer + Nym (testnet) |\n|---|---|---|---|\n");
-    m.push_str(&format!("| Same-connection | {} | {} | — |\n", frac(before, |s| s.same_connection), frac(after, |s| s.same_connection)));
-    m.push_str(&format!("| Sync-then-send ≤ {t:.0} s | {} | {} | — |\n", frac(before, |s| s.sync_then_send), frac(after, |s| s.sync_then_send)));
+    m.push_str(&format!("| Same-connection | {} | {} | {} |\n", frac(before, |s| s.same_connection), frac(after, |s| s.same_connection),
+        n(&|a| frac(a, |s| s.same_connection))));
+    m.push_str(&format!("| Sync-then-send ≤ {t:.0} s | {} | {} | {} |\n", frac(before, |s| s.sync_then_send), frac(after, |s| s.sync_then_send),
+        n(&|a| frac(a, |s| s.sync_then_send))));
     m.push_str(&format!(
-        "| Range fingerprint (sessions chained) | {} of {} sessions | {} of {} sessions | — |\n",
-        before.fingerprint_linked_sessions, before.sync_sessions, after.fingerprint_linked_sessions, after.sync_sessions
+        "| Range fingerprint (sessions chained) | {} of {} sessions | {} of {} sessions | {} |\n",
+        before.fingerprint_linked_sessions, before.sync_sessions, after.fingerprint_linked_sessions, after.sync_sessions,
+        n(&|a| format!("{} of {} sessions", a.fingerprint_linked_sessions, a.sync_sessions))
     ));
     m.push_str(&format!(
         "| Same IP | {} (local run: one source IP) | {} (expected still linked without Nym) | {} |\n",
         frac(before, |s| s.same_ip),
         frac(after, |s| s.same_ip),
-        nym_note.unwrap_or("see `ghost ip --nym`")
+        n(&|a| format!("{}{}", frac(a, |s| s.same_ip), nym_note.map(|x| format!(" ({x})")).unwrap_or_default()))
     ));
-    m.push_str(&format!("| Median tip→broadcast time | {} | {} | — |\n", secs(before.median_tip_to_send_s), secs(after.median_tip_to_send_s)));
+    m.push_str(&format!("| Median tip→broadcast time | {} | {} | {} |\n", secs(before.median_tip_to_send_s), secs(after.median_tip_to_send_s),
+        n(&|a| secs(a.median_tip_to_send_s))));
     m.push_str(&format!(
-        "| **Overall linkage rate (same-connection or sync-then-send)** | **{:.0} %** | **{:.0} %** | — |\n",
+        "| **Overall linkage rate (same-connection or sync-then-send)** | **{:.0} %** | **{:.0} %** | {} |\n",
         before.rate(),
-        after.rate()
+        after.rate(),
+        n(&|a| format!("**{:.0} %**", a.rate()))
     ));
     m
 }

@@ -19,7 +19,9 @@
 | Server, **without Nym** | your IP on both paths (same IP → linkable; our attacker test reports this honestly as 5/5 linked). |
 | Nym | the exit knows *some* Nym user talks to the server; your ISP sees that you use Nym. |
 | Chain (everyone) | that a transaction exists, its fee and its expiry height. Note that the expiry height is set by the wallet when it builds the tx, *before* Ghost Layer's delay, so it can hint at the wallet's sync height (swizzle's wallet-side scheduler avoids this; a gateway can't). |
-| Local disk (`~/.ghost-layer`) | broadcast queue (txid, timing, status; raw bytes are wiped once final) and a compact-block cache. Protect your machine; delete the directory to erase. The stderr log contains txids of your broadcasts (required for verifiability) but no addresses. |
+| Local disk (`~/.ghost-layer`) | broadcast queue (txid, timing, status, privacy mode; raw bytes are wiped once final); a compact-block cache per server; `upstream-events.jsonl`, a record of what the server could observe (connection ids, transport, RPC method, time, block heights, broadcast payload size + SHA-256; **no addresses, keys, memos or raw txs**; disable with `ghost up --no-event-log`); `mcp-calls.jsonl` (tool name, recipient, amount for `ghost_pay`). Protect your machine; delete the directory to erase. The stderr log contains txids of your broadcasts (required for verifiability) but no addresses. |
+| `ghost dashboard` | serves **127.0.0.1 only** (refuses other listen addresses and non-loopback peers), embedded page, no external requests (strict CSP), GET-only. It shows the queue, event log analysis and exit IPs (your own IP masked). Anyone with access to your machine's loopback can view it while it runs. |
+| `ghost mcp` | a local stdio process started by your MCP client; read-only tools by default. `ghost_pay` only if you start it with `--allow-pay` and caps; the wallet and identity are fixed by you at startup, never chosen by the agent. Tool results (txids, statuses, exit IPs) go to the AI model provider your client uses. |
 
 ## 3. What must users trust?
 

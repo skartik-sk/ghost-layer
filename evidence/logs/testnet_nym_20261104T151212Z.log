@@ -1,0 +1,13 @@
+2026-11-04T15:12:17.353883Z  INFO upstream: startup probe ok (connection closed) conn=1 transport="nym-sync" server=https://testnet.zec.rocks:443 tip=4582436
+2026-11-04T15:12:19.454817Z  INFO upstream: new sync connection for a new wallet session conn=2 path="sync" transport="nym-sync" wallet=127.0.0.1:55517
+2026-11-04T15:12:19.454887Z  INFO upstream: start_index=0 max=0 conn=2 path="sync" method="GetSubtreeRoots"
+2026-11-04T15:12:20.631879Z  INFO upstream: start_index=0 max=0 conn=2 path="sync" method="GetSubtreeRoots"
+2026-11-04T15:12:24.776082Z  INFO upstream: start_index=0 max=0 conn=2 path="sync" method="GetSubtreeRoots"
+2026-11-04T15:12:25.814407Z  INFO upstream:  conn=2 path="sync" method="GetLatestBlock"
+2026-11-04T15:12:26.918196Z  INFO upstream:  conn=2 path="sync" method="GetAddressUtxosStream"
+2026-11-04T15:12:31.093844Z  INFO grid: planned grid-aligned fetch wallet_range=4582422..=4582436 emitted=4581504..=4582436 cells=1 spacing=1152
+2026-11-04T15:12:31.094005Z  INFO upstream: range=4581504..=4582436 (grid cell) conn=2 path="sync" method="GetBlockRange" aligned=true
+2026-11-04T15:12:43.336949Z  INFO upstream: height=4582421 conn=2 path="sync" method="GetTreeState"
+2026-11-04T15:12:47.964344Z  INFO broadcast: queued; will broadcast on a fresh connection after random delay txid=fa0d271fe3ca174448048a71ab7c35fb039666f0c115124c45f66a5dd8f39685 delay_s=27.163
+2026-11-04T15:13:16.236816Z  INFO upstream: fresh connection opened for this tx only conn=3 path="broadcast" transport="nym-broadcast" method="SendTransaction"
+2026-11-04T15:13:19.276094Z  INFO broadcast: broadcast done txid=fa0d271fe3ca174448048a71ab7c35fb039666f0c115124c45f66a5dd8f39685 status="accepted" conn=3 transport=nym-broadcast endpoint=https://testnet.zec.rocks:443 scheduled_ms=1793805195126 actual_ms=1793805199275 late_ms=4149 code=0 msg="fa0d271fe3ca174448048a71ab7c35fb039666f0c115124c45f66a5dd8f39685"

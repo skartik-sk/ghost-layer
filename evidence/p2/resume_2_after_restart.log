@@ -1,0 +1,4 @@
+2026-11-04T14:52:51.938517Z  INFO upstream: startup probe ok (connection closed) conn=1 transport="direct" server=https://testnet.zec.rocks:443 tip=4582388
+2026-11-04T14:52:51.940871Z  INFO broadcast: resuming queued tx from previous run txid=98e28102f21d12c2572f56d64a7bbd2c9a8086ec5ec81ef9c1dc85908ade22aa in_s=15
+2026-11-04T14:53:07.527774Z  INFO upstream: fresh connection opened for this tx only conn=2 path="broadcast" transport="direct" method="SendTransaction"
+2026-11-04T14:53:08.108596Z  INFO broadcast: broadcast done txid=98e28102f21d12c2572f56d64a7bbd2c9a8086ec5ec81ef9c1dc85908ade22aa status="accepted" conn=2 transport=direct endpoint=https://testnet.zec.rocks:443 scheduled_ms=1793803987286 actual_ms=1793803988108 late_ms=822 code=0 msg="98e28102f21d12c2572f56d64a7bbd2c9a8086ec5ec81ef9c1dc85908ade22aa"

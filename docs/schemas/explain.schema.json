@@ -1,0 +1,38 @@
+{
+  "$schema": "https://json-schema.org/draft/2020-12/schema",
+  "type": "object",
+  "required": [
+    "schema_version",
+    "ok",
+    "leaks",
+    "not_hidden"
+  ],
+  "properties": {
+    "schema_version": {
+      "const": 1
+    },
+    "ok": {
+      "type": "boolean"
+    },
+    "leaks": {
+      "type": "array",
+      "minItems": 3,
+      "items": {
+        "type": "object",
+        "required": [
+          "leak",
+          "what",
+          "why",
+          "ghost_layer"
+        ]
+      }
+    },
+    "not_hidden": {
+      "type": "array",
+      "items": {
+        "type": "string"
+      }
+    }
+  },
+  "title": "ghost --json explain"
+}

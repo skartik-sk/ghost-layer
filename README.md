@@ -33,39 +33,51 @@ Ghost Layer is a small local gateway between any lightwalletd-compatible wallet 
 | Grid alignment on **public testnet** | 5/5 upstream ranges aligned; two wallets synced to 100 % | [`evidence/grid_alignment.md`](evidence/grid_alignment.md) |
 | Nym on **public testnet** | server sees sync exit `195.238.126.176` ≠ broadcast exit `157.254.54.45` ≠ your IP; wallet synced through the mixnet; killing a Nym client → `UNAVAILABLE`, never a direct fallback | [`evidence/logs/step5_ghost_ip.txt`](evidence/logs/step5_ghost_ip.txt), [`step5_fail_closed.txt`](evidence/logs/step5_fail_closed.txt) |
 | Broadcast pipeline over Nym on **public testnet** | fresh connection #3 via the Nym broadcast exit after a 14.7 s random delay. (This was a re-submitted mined tx, rejected as a duplicate. Not a payment.) | [`evidence/nym_broadcast_pipeline.md`](evidence/nym_broadcast_pipeline.md) |
+| **Nym on testnet, N = 5** (+1 e2e) | 5 real payments via `ghost up --nym`, fresh random exits per run: **0 / 5 linked** by connection, timing (16–35 s after tip), IP (sync exit ≠ broadcast exit) or range chaining | [`evidence/ATTACK_RESULTS.md`](evidence/ATTACK_RESULTS.md) (Nym column + per-payment table) |
+| `ghost pay` (one command) | real payment with memo; receiver's viewing key decrypts amount **and memo**; `--json` output validated by `cargo test` | [`evidence/pay_demo.md`](evidence/pay_demo.md) |
+| Queue mode + restart-resume | `--send-mode queue`: wallet returns in 3.6 s, `ghost status` tracks the real outcome; killed with a tx queued → restart gives a **fresh** random delay, sent **exactly once**, mined | [`evidence/p2/README.md`](evidence/p2/README.md) |
+| `ghost verify --ufvk` | read-only decryption of Ironwood outputs with a viewing key (incoming / outgoing / change; negative control) | [`evidence/ufvk_verify.md`](evidence/ufvk_verify.md) |
+| MCP server | a real MCP client (Claude Code) calls `ghost_status` + `ghost_verify` and answers from real data; `ghost_pay` caps refuse over-limit/mainnet | [`evidence/mcp_demo.md`](evidence/mcp_demo.md) |
 | **Real testnet payments** | before (direct): [`4d8f96ec…126b4970`](https://testnet.zcashexplorer.app/transactions/4d8f96ec56cd36871d6611e8fbe72cfc37cd7e9730d32cafeb2992fa126b4970), mined at 4582106 · **after (Ghost Layer + Nym)**: [`09f0f0b0…2bd3ce69`](https://testnet.zcashexplorer.app/transactions/09f0f0b01942a658197f65563a977c66fc19f8823268b0e547470e022bd3ce69), mined at 4582118: sync via one Nym exit, broadcast on a fresh connection via another after a 16.3 s random delay | [`evidence/testnet_tx.md`](evidence/testnet_tx.md) |
 
-## Quickstart (≈15 min)
+## Quickstart: one command
 
 ```bash
-# 1. Rust (stable ≥ 1.85, edition 2024) and protoc
-git clone <this repo> ghost-layer && cd ghost-layer
-cargo build --release            # binary: target/release/ghost
+cargo build --release                       # Rust ≥ 1.85 + protoc → target/release/ghost
+NYM_SOCKS5=/path/to/nym-socks5-client scripts/nym_setup.sh up   # optional: Nym (build from github.com/nymtech/nym)
 
-# 2. (optional, recommended) Nym: two SOCKS5 clients with different exits
-#    No macOS arm64 release binary exists: build it from github.com/nymtech/nym
-#    (cargo build --release -p nym-socks5-client), then:
-NYM_SOCKS5=/path/to/nym-socks5-client scripts/nym_setup.sh up
+# a zcash-devtool testnet wallet (github.com/zcash/zcash-devtool); keys stay in it
+zcash-devtool wallet -w ./w init --name demo -i ./w.age -n test -s testnet.zec.rocks:443 --birthday <recent height>
 
-# 3. Check and start
-target/release/ghost doctor [--nym]
-target/release/ghost up [--nym] [--profile demo|privacy] [--send-mode hold|queue]
-
-# 4. Use any wallet that takes a custom server, e.g. zcash-devtool (github.com/zcash/zcash-devtool)
-zcash-devtool wallet -w ./w init --name demo -i ./w.age -n test -s 127.0.0.1:9067 --birthday <recent height>
-zcash-devtool wallet -w ./w sync -s 127.0.0.1:9067
-zcash-devtool wallet -w ./w send -i ./w.age --address <utest1…> --value 100000 -s 127.0.0.1:9067
-
-# 5. Watch and verify
-target/release/ghost status          # queue: random delay, fresh connection id, transport, explorer links
-target/release/ghost ip --nym        # which IP the server sees on each path (real measurement)
-target/release/ghost verify --nym <txid>
+# send privately: starts the gateway if needed, syncs through it, sends (live random-delay countdown),
+# broadcasts on a fresh connection via a separate Nym exit, waits until mined, prints explorer links
+target/release/ghost pay --wallet ./w --identity ./w.age --to utest1… --amount 0.001 --nym
 ```
 
-All commands accept `--json`. Exit codes: `0` ok, `1` runtime failure (or "not mined yet" for `verify`), `2` usage/config error. Every error prints a "→ what to do next" hint.
+Watch it live: `target/release/ghost dashboard` → <http://127.0.0.1:9070> (what the server sees, queue countdowns, grid, attacker view). Real data from our testnet runs:
+
+![Ghost Layer dashboard: the server sees two different Nym exits, every broadcast on a fresh connection after a random delay, all sync ranges grid-aligned, attacker: 0 % linked](evidence/app/dashboard.png)
+
+<details><summary>Manual mode (any wallet that accepts a custom server)</summary>
+
+```bash
+target/release/ghost doctor --nym
+target/release/ghost up --nym [--profile demo|privacy] [--send-mode hold|queue]
+zcash-devtool wallet -w ./w sync -s 127.0.0.1:9067
+zcash-devtool wallet -w ./w send -i ./w.age --address <utest1…> --value 100000 -s 127.0.0.1:9067
+target/release/ghost status            # random delay, fresh connection id, transport, explorer links
+target/release/ghost ip --nym          # which IP the server sees on each path (real measurement)
+target/release/ghost verify --nym <txid>
+```
+</details>
+
+All commands accept `--json`. Exit codes: `0` ok, `1` runtime failure (or "not mined yet" for `verify`), `2` usage/config error, `3` transaction rejected. Output shapes: [docs/json-schema.md](docs/json-schema.md). Every error prints a "→ what to do next" hint.
 
 | Command | Purpose |
 |---|---|
+| `ghost pay` | one-command private payment: gateway → sync → send (random delay, fresh connection) → mined → explorer links |
+| `ghost dashboard` | live local page on `127.0.0.1:9070` (loopback only): what the server sees, queue countdowns, grid, attacker view, before/after |
+| `ghost mcp` | MCP server (stdio) for AI agents: read-only tools; `ghost_pay` only with `--allow-pay` + caps |
 | `ghost up` | gateway on `127.0.0.1:9067` (loopback only unless `--allow-remote`); `--broadcast-server` to broadcast via a different server than you sync from |
 | `ghost doctor` | upstream reachable, chain = test, NU branch id, tip, TLS, port, storage; with `--nym`: both clients + exit IPs, upstream **only via Nym** |
 | `ghost status` | broadcast queue: pending/accepted/rejected/failed, delay, fresh connection, explorer links |
@@ -74,6 +86,33 @@ All commands accept `--json`. Exit codes: `0` ok, `1` runtime failure (or "not m
 | `ghost explain` | plain-language explanation of the three leaks and what is closed |
 | `ghost attack --events f` | linkage heuristics over a server-side observer log |
 | `ghost report --before d --after d` / `--attack` | `BEFORE_AFTER.md` / `ATTACK_RESULTS.md` |
+
+## Verify our payments yourself (viewing key)
+
+The demo **receiving** wallet's viewing key (testnet only; it can decrypt, never spend) is in [`evidence/ufvk_verify.md`](evidence/ufvk_verify.md):
+
+```bash
+target/release/ghost verify --ufvk "$(sed -n '/^uviewtest1/p' evidence/ufvk_verify.md)" 09f0f0b01942a658197f65563a977c66fc19f8823268b0e547470e022bd3ce69
+# ✅ mined at height 4582118 … 🔑 ironwood incoming — 0.00100000 TAZ (100000 zat)
+```
+
+## For AI agents
+
+- [`llms.txt`](llms.txt) / [`llms-full.txt`](llms-full.txt): what Ghost Layer is, every command, JSON shapes, and the NU7/Ironwood/testnet facts
+- [`AGENTS.md`](AGENTS.md) / [`CLAUDE.md`](CLAUDE.md): how a coding agent builds, tests and runs this repo (and its rules)
+- [`docs/json-schema.md`](docs/json-schema.md) + [`docs/schemas/`](docs/schemas/): stable `--json` contract (`schema_version` 1), validated against real output by `cargo test`
+- [`skills/ghost-layer/SKILL.md`](skills/ghost-layer/SKILL.md): agent skill (when to use, steps, safety rules, reading results)
+- **MCP server**: `ghost mcp` (stdio, official `rmcp` 3.8.0 SDK). Tools: `ghost_status`, `ghost_verify`, `ghost_ip`, `ghost_doctor`, `ghost_report`, `ghost_explain` (read-only). `ghost_pay` exists only when *you* start it with `--allow-pay --max-amount <TAZ> --max-per-hour <n> --wallet <dir> --identity <file>`; caps are enforced in code, testnet-only, every call is logged to `~/.ghost-layer/mcp-calls.jsonl`. Real client transcript: [`evidence/mcp_demo.md`](evidence/mcp_demo.md).
+
+```json
+{
+  "mcpServers": {
+    "ghost-layer": { "command": "/path/to/ghost-layer/target/release/ghost", "args": ["mcp", "--nym"] }
+  }
+}
+```
+
+Then ask your agent: *"What's my ghost status?"* or *"Is 09f0f0b0…ce69 mined?"*
 
 ## Architecture
 
@@ -98,7 +137,7 @@ All commands accept `--json`. Exit codes: `0` ok, `1` runtime failure (or "not m
  lightwalletd / Zaino: testnet.zec.rocks:443 (or local regtest + ShadeCheck observer)
 ```
 
-Crates: `ghost-core` (grid planner + broadcast scheduler, no network code), `ghost-transport` (direct TLS, Nym SOCKS5 connector, generated protocol), `ghost-gateway` (tonic `CompactTxStreamer` server, all 21 RPCs), `ghost-attacker` (linkage heuristics), `ghost-cli` (`ghost`).
+Crates: `ghost-core` (grid planner + broadcast scheduler + upstream event log, no network code), `ghost-transport` (direct TLS, Nym SOCKS5 connector, generated protocol), `ghost-gateway` (tonic `CompactTxStreamer` server, all 21 RPCs), `ghost-attacker` (linkage heuristics), `ghost-cli` (`ghost`).
 
 ### Design decisions
 
@@ -123,6 +162,8 @@ Crates: `ghost-core` (grid planner + broadcast scheduler, no network code), `gho
 | `nym-swizzle-zcash` (grid) | nymtech/nym `develop` @ `e416f724` |
 | `nym-socks5-client` | 1.1.88, built from nymtech/nym @ `e416f724` |
 | zcash-devtool (demo wallet) | zcash/zcash-devtool @ `0b3436b` (`--features regtest_support` for local runs) |
+| `rmcp` (official Rust MCP SDK), `schemars` | 3.8.0, 1 |
+| `jsonschema` (contract test), `sha2` (payload hash in the event log) | 0.60.2, 0.10 |
 | ShadeCheck (independent tester) | github.com/0xaje/ShadeCheck- (observer + SC-001/SC-002, strict) |
 | Local network | Zebra 7.0.0 + Zaino 0.10.1 regtest (ShadeCheck `integration/modern`) |
 | Public network | `testnet.zec.rocks:443` (ECC LightWalletD v0.6.1 on Zebra 7.0.0) |

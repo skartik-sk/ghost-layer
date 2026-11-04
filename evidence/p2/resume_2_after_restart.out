@@ -1,0 +1,11 @@
+👻 Ghost Layer up on 127.0.0.1:9077
+   sync      → https://testnet.zec.rocks:443 (one long-lived connection)
+   broadcast → https://testnet.zec.rocks:443 (fresh connection per tx)
+   Point your wallet at 127.0.0.1:9077 (e.g. zcash-devtool ... -s 127.0.0.1:9077)
+   ✅ broadcasts never share the sync connection
+   ✅ random broadcast delay 10–40 s (demo profile, send-mode queue)
+   ✅ grid-aligned GetBlockRange/GetBlock: upstream sees 1152-block cells (nym-swizzle-zcash rule)
+   ⚠️  still visible to the server: tree-state/subtree heights, pool-type filter, transparent-address queries
+   ✅ wallet headers stripped
+   ⚠️  not hidden in direct mode: your IP (same on both paths) — use --nym
+   ↻ resumed 1 queued broadcast(s) from the previous run (fresh random delays)

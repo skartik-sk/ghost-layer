@@ -45,7 +45,9 @@ esac
 # Pick two different healthy exits that run a network requester with an exit policy.
 pick_providers() {
   local tmp; tmp="$(mktemp -d)"
-  curl -fsS --max-time 60 "$API/unstable/nym-nodes/skimmed/exit-gateways/all" -o "$tmp/exits.json"
+  # The performance list is preferred but sometimes times out; then fall back to the directory alone.
+  for _ in 1 2 3; do curl -fsS --max-time 30 "$API/unstable/nym-nodes/skimmed/exit-gateways/all" -o "$tmp/exits.json" && break; done \
+    || echo '{"nodes": []}' > "$tmp/exits.json"
   curl -fsS --max-time 60 "$API/nym-nodes/described?per_page=5000" -o "$tmp/described.json"
   EXCLUDE_IPS="$(cat "$DIR"/ghost-*.provider 2>/dev/null | awk '{print $2}' | tr '\n' ' ')" \
   python3 -I - "$tmp/exits.json" "$tmp/described.json" <<'PY'
@@ -63,6 +65,20 @@ for d in desc:
 good = [e for e in exits
         if e.get("supported_roles", {}).get("exit_nr") and float(e.get("performance", 0)) >= 0.95
         and e["node_id"] in nr and e.get("ip_addresses")]
+if not good:  # performance list unavailable: exit-capable nodes with an exit policy, polled in the last hour
+    import datetime
+    now = datetime.datetime.now(datetime.timezone.utc)
+    for d in desc:
+        x = d.get("description") or {}
+        ip = (x.get("host_information") or {}).get("ip_address") or []
+        polled = (x.get("last_polled") or "")[:19]
+        try:
+            fresh = (now - datetime.datetime.fromisoformat(polled).replace(tzinfo=datetime.timezone.utc)).total_seconds() < 3600
+        except ValueError:
+            fresh = False
+        if (x.get("declared_role") or {}).get("exit_nr") and d["node_id"] in nr and ip and fresh:
+            good.append({"node_id": d["node_id"], "ip_addresses": ip})
+    print("note: Nym performance API unavailable; chose from recently-polled exit nodes", file=sys.stderr)
 random.SystemRandom().shuffle(good)
 chosen, ips = [], set(exclude)
 for e in good:

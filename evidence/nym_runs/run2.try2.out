@@ -1,0 +1,10 @@
+❌ upstream reachable   https://testnet.zec.rocks:443 via nym-sync: via Nym SOCKS5 127.0.0.1:1080 (fail-closed, no direct fallback): transport error
+✅ listen port          127.0.0.1:19067 free
+✅ storage writable     /Users/singupallikartik/.ghost-layer 
+❌ nym sync client      127.0.0.1:1080: no answer within 60 s → scripts/nym_setup.sh up
+❌ nym broadcast client 127.0.0.1:1081: no answer within 60 s → scripts/nym_setup.sh up
+→ fix the ❌ items above; for upstream problems check your network or try another --server
+❌ ghost doctor
+
+== e2e_testnet summary (nym)
+❌ ghost doctor

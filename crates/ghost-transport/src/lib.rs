@@ -139,6 +139,12 @@ impl tower::Service<http::Uri> for SocksConnector {
 /// The public IP a server sees for a path: HTTPS GET to an IP-echo service, direct or through a
 /// SOCKS5 proxy (hostname resolved by the proxy). A real measurement, not a config lookup.
 pub async fn public_ip(socks: Option<SocketAddr>) -> anyhow::Result<String> {
+    tokio::time::timeout(Duration::from_secs(60), public_ip_inner(socks))
+        .await
+        .map_err(|_| anyhow::anyhow!("no answer within 60 s"))?
+}
+
+async fn public_ip_inner(socks: Option<SocketAddr>) -> anyhow::Result<String> {
     const HOST: &str = "api.ipify.org";
     let tcp = match socks {
         None => TcpStream::connect((HOST, 443)).await?,

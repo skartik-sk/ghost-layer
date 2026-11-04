@@ -1,0 +1,81 @@
+{
+  "$schema": "https://json-schema.org/draft/2020-12/schema",
+  "type": "object",
+  "required": [
+    "schema_version",
+    "ok",
+    "txid",
+    "amount_zat",
+    "to",
+    "gateway",
+    "nym",
+    "height",
+    "confirmations",
+    "explorer"
+  ],
+  "properties": {
+    "schema_version": {
+      "const": 1
+    },
+    "ok": {
+      "type": "boolean"
+    },
+    "txid": {
+      "type": "string",
+      "pattern": "^[0-9a-f]{64}$"
+    },
+    "amount_zat": {
+      "type": "integer"
+    },
+    "to": {
+      "type": "string"
+    },
+    "gateway": {
+      "enum": [
+        "existing",
+        "started"
+      ]
+    },
+    "nym": {
+      "type": "boolean"
+    },
+    "height": {
+      "type": [
+        "integer",
+        "null"
+      ]
+    },
+    "confirmations": {
+      "type": "integer"
+    },
+    "delay_s": {
+      "type": [
+        "number",
+        "null"
+      ]
+    },
+    "broadcast_conn": {
+      "type": [
+        "integer",
+        "null"
+      ]
+    },
+    "transport": {
+      "type": [
+        "string",
+        "null"
+      ]
+    },
+    "elapsed_s": {
+      "type": "number"
+    },
+    "explorer": {
+      "type": "array",
+      "items": {
+        "type": "string",
+        "pattern": "^https://"
+      }
+    }
+  },
+  "title": "ghost --json pay"
+}

@@ -1,0 +1,95 @@
+{
+  "$schema": "https://json-schema.org/draft/2020-12/schema",
+  "type": "object",
+  "required": [
+    "schema_version",
+    "ok",
+    "txid",
+    "state",
+    "confirmations",
+    "tip",
+    "explorer"
+  ],
+  "properties": {
+    "schema_version": {
+      "const": 1
+    },
+    "ok": {
+      "type": "boolean"
+    },
+    "txid": {
+      "type": "string",
+      "pattern": "^[0-9a-f]{64}$"
+    },
+    "state": {
+      "enum": [
+        "mined",
+        "mempool",
+        "orphaned",
+        "not_found"
+      ]
+    },
+    "height": {
+      "type": [
+        "integer",
+        "null"
+      ]
+    },
+    "confirmations": {
+      "type": "integer"
+    },
+    "tip": {
+      "type": "integer"
+    },
+    "explorer": {
+      "type": "array",
+      "items": {
+        "type": "string",
+        "pattern": "^https://"
+      }
+    },
+    "decrypted": {
+      "type": [
+        "array",
+        "null"
+      ],
+      "items": {
+        "type": "object",
+        "required": [
+          "pool",
+          "index",
+          "value_zat",
+          "transfer",
+          "memo"
+        ],
+        "properties": {
+          "pool": {
+            "enum": [
+              "sapling",
+              "orchard",
+              "ironwood"
+            ]
+          },
+          "index": {
+            "type": "integer"
+          },
+          "value_zat": {
+            "type": "integer"
+          },
+          "transfer": {
+            "enum": [
+              "incoming",
+              "change",
+              "wallet-internal",
+              "outgoing"
+            ]
+          },
+          "memo": {
+            "type": "string"
+          }
+        }
+      }
+    }
+  },
+  "title": "ghost --json verify"
+}

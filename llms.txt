@@ -1,0 +1,37 @@
+# Ghost Layer
+
+> A local gateway between any lightwalletd-compatible Zcash wallet and the light-wallet server that stops the server from linking your payments to your wallet: split broadcast (fresh connection per tx), randomized broadcast delay, grid-aligned sync (Nym's nym-swizzle-zcash rule) and the Nym mixnet (different exits for sync and broadcast, fail closed). Rust CLI `ghost`; testnet only. Measured: 100 % → 0 % payments linked by an honest-but-curious server.
+
+Zcash facts for agents (do not write outdated code): **testnet only**; NU7 is active (consensus branch `0x77190AD9`); transactions are v6 (v4 is invalid); **Orchard is sealed: new shielded funds go to the Ironwood pool** (Ironwood reuses Orchard's key tree and address format); unified addresses start `utest1`; server `testnet.zec.rocks:443` (dead: `lightwalletd.testnet.electriccoin.co`, `testnet.lightwalletd.com`); explorer `https://testnet.zcashexplorer.app/transactions/<txid>`. Ghost never sees seeds or spending keys; the wallet (zcash-devtool) holds them.
+
+The three leaks it fixes: (1) IP → Nym exits; (2) sync-then-send timing → every broadcast on a brand-new connection after a random delay; (3) block-range fingerprint → only whole 1152-block grid cells go upstream.
+
+## Commands (all accept `--json`; exit 0 ok, 1 runtime, 2 usage, 3 tx rejected)
+
+- `ghost pay --wallet ./w --identity ./w.age --to utest1… --amount 0.001 --nym` — one-command private payment; waits until mined. JSON: `{txid, height, confirmations, delay_s, broadcast_conn, transport, explorer[]}`
+- `ghost up --nym --profile demo` — gateway on 127.0.0.1:9067; point the wallet at it
+- `ghost status` — broadcast queue `{broadcasts[]{row{txid,status,…}, delay_s, explorer[]}}`
+- `ghost verify --nym 09f0f0b01942a658197f65563a977c66fc19f8823268b0e547470e022bd3ce69` — `{state, height, confirmations, explorer[]}`
+- `ghost ip --nym` — which IP the server sees per path `{sync_path_ip, broadcast_path_ip, paths_unlinkable_by_ip}`
+- `ghost doctor --nym` — health checks `{checks[]{name,ok,detail}}`
+- `ghost attack --events ~/.ghost-layer/upstream-events.jsonl` — attacker heuristics `{sends[]{linked, linked_by[]}, rate}`
+- `ghost report --attack --before b.jsonl --after a.jsonl --nym-events n.jsonl` — writes evidence/ATTACK_RESULTS.md
+- `ghost explain` — plain-language explanation `{leaks[], not_hidden[]}`
+- `ghost dashboard` — live page on http://127.0.0.1:9070 (loopback only)
+- `ghost mcp` — MCP stdio server (read-only tools; `ghost_pay` only with `--allow-pay --max-amount --max-per-hour --wallet --identity`)
+
+## Docs
+
+- [README](README.md): quickstart, architecture, design decisions, evidence table
+- [JSON contract](docs/json-schema.md) and [schemas](docs/schemas/)
+- [PRIVACY.md](PRIVACY.md): what is hidden, what is revealed to whom, what to trust
+- [AGENTS.md](AGENTS.md): how to build/test/run as a coding agent
+- [Skill](skills/ghost-layer/SKILL.md): when and how an agent should use Ghost Layer
+- [llms-full.txt](llms-full.txt): full command reference
+
+## Evidence (real runs)
+
+- [evidence/ATTACK_RESULTS.md](evidence/ATTACK_RESULTS.md): linkage before/after (+ Nym on testnet)
+- [evidence/testnet_tx.md](evidence/testnet_tx.md): real testnet txids, explorer links, NU7 proof
+- [evidence/BEFORE_AFTER.md](evidence/BEFORE_AFTER.md): ShadeCheck strict results, reported as is
+- [evidence/mcp_demo.md](evidence/mcp_demo.md): a real MCP client calling `ghost mcp`

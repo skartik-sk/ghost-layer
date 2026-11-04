@@ -1,0 +1,16 @@
+2026-11-04T14:24:41.732249Z  INFO upstream: startup probe ok (connection closed) conn=1 transport="nym-sync" server=https://testnet.zec.rocks:443 tip=4582314
+2026-11-04T14:24:44.018991Z  INFO upstream: new sync connection for a new wallet session conn=2 path="sync" transport="nym-sync" wallet=127.0.0.1:52206
+2026-11-04T14:24:44.020346Z  INFO upstream: start_index=0 max=0 conn=2 path="sync" method="GetSubtreeRoots"
+2026-11-04T14:24:45.136565Z  INFO upstream: start_index=0 max=0 conn=2 path="sync" method="GetSubtreeRoots"
+2026-11-04T14:24:56.476782Z  INFO upstream: start_index=0 max=0 conn=2 path="sync" method="GetSubtreeRoots"
+2026-11-04T14:24:59.942130Z  INFO upstream:  conn=2 path="sync" method="GetLatestBlock"
+2026-11-04T14:25:03.713055Z  INFO upstream:  conn=2 path="sync" method="GetAddressUtxosStream"
+2026-11-04T14:25:05.583698Z  INFO grid: planned grid-aligned fetch wallet_range=4582154..=4582163 emitted=4581504..=4582314 cells=1 spacing=1152
+2026-11-04T14:25:05.584196Z  INFO upstream: range=4581504..=4582314 (grid cell) conn=2 path="sync" method="GetBlockRange" aligned=true
+2026-11-04T14:25:16.319887Z  INFO upstream: height=4582153 conn=2 path="sync" method="GetTreeState"
+2026-11-04T14:25:21.797219Z  INFO grid: planned grid-aligned fetch wallet_range=4582164..=4582314 emitted=4581504..=4582314 cells=1 spacing=1152
+2026-11-04T14:25:21.797284Z  INFO upstream: range=4581504..=4582314 (grid cell) conn=2 path="sync" method="GetBlockRange" aligned=true
+2026-11-04T14:25:31.598777Z  INFO upstream: height=4582163 conn=2 path="sync" method="GetTreeState"
+2026-11-04T14:25:38.986522Z  INFO broadcast: queued; will broadcast on a fresh connection after random delay txid=1483bfca44da89dfb552ac2cb5cf5338d05d985e79d7114c70b868f4998b5489 delay_s=20.976
+2026-11-04T14:26:05.259849Z  INFO upstream: fresh connection opened for this tx only conn=3 path="broadcast" transport="nym-broadcast" method="SendTransaction"
+2026-11-04T14:26:08.990907Z  INFO broadcast: broadcast done txid=1483bfca44da89dfb552ac2cb5cf5338d05d985e79d7114c70b868f4998b5489 status="accepted" conn=3 transport=nym-broadcast endpoint=https://testnet.zec.rocks:443 scheduled_ms=1793802359958 actual_ms=1793802368990 late_ms=9032 code=0 msg="1483bfca44da89dfb552ac2cb5cf5338d05d985e79d7114c70b868f4998b5489"

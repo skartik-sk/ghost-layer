@@ -1,0 +1,25 @@
+{
+  "$schema": "https://json-schema.org/draft/2020-12/schema",
+  "type": "object",
+  "required": [
+    "schema_version",
+    "ok",
+    "error",
+    "hint"
+  ],
+  "properties": {
+    "schema_version": {
+      "const": 1
+    },
+    "ok": {
+      "const": false
+    },
+    "error": {
+      "type": "string"
+    },
+    "hint": {
+      "type": "string"
+    }
+  },
+  "title": "ghost --json <any command> (failure)"
+}

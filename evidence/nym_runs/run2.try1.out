@@ -1,0 +1,25 @@
+✅ upstream reachable   https://testnet.zec.rocks:443 via nym-sync
+✅ tls                  TLS (webpki roots)
+✅ chain = test         chain_name="test"
+✅ protos compatible    ECC LightWalletD v0.6.1 (protocol "v0.6.0")
+✅ consensus branch     77190ad9 (backend v7.0.0+git.e8db87e /Zebra:7.0.0/; next upgrade: none)
+✅ tip height           4582370
+✅ listen port          127.0.0.1:19067 free
+✅ storage writable     /Users/singupallikartik/.ghost-layer 
+✅ nym sync client      127.0.0.1:1080 up, exit IP 162.247.153.65 [exit node 3137 (162.247.153.65)]
+✅ nym broadcast client 127.0.0.1:1081 up, exit IP 128.127.180.247 [exit node 2926 (128.127.180.247)]
+✅ ghost doctor green (nym)
+Connection to 127.0.0.1 port 9067 [tcp/*] succeeded!
+✅ ghost up nym on 127.0.0.1:9067
+✅ wallet synced via 127.0.0.1:9067 (Height: 4582371)
+✅ sent 100000 zat in 31 s, txid 0d4e2f61b81a529b92fb2fcc40ebe09d9a6de4b62a888985cb4ddcc409463417
+✅ mined: ✅ mined at height 4582374 — 1 confirmation(s) (tip 4582374)
+✅ appended to evidence/testnet_tx.md
+
+== e2e_testnet summary (nym)
+✅ ghost doctor green (nym)
+✅ ghost up nym on 127.0.0.1:9067
+✅ wallet synced via 127.0.0.1:9067 (Height: 4582371)
+✅ sent 100000 zat in 31 s, txid 0d4e2f61b81a529b92fb2fcc40ebe09d9a6de4b62a888985cb4ddcc409463417
+✅ mined: ✅ mined at height 4582374 — 1 confirmation(s) (tip 4582374)
+✅ appended to evidence/testnet_tx.md

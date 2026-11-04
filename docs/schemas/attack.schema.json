@@ -1,0 +1,102 @@
+{
+  "$schema": "https://json-schema.org/draft/2020-12/schema",
+  "type": "object",
+  "required": [
+    "schema_version",
+    "ok",
+    "rate"
+  ],
+  "properties": {
+    "schema_version": {
+      "const": 1
+    },
+    "ok": {
+      "type": "boolean"
+    },
+    "rate": {
+      "type": "number"
+    }
+  },
+  "allOf": [
+    {
+      "type": "object",
+      "required": [
+        "sends",
+        "sync_sessions",
+        "fingerprint_linked_sessions",
+        "upstream_connections",
+        "threshold_s"
+      ],
+      "properties": {
+        "source": {
+          "type": "string"
+        },
+        "threshold_s": {
+          "type": "number"
+        },
+        "sends": {
+          "type": "array",
+          "items": {
+            "type": "object",
+            "required": [
+              "index",
+              "linked",
+              "linked_by",
+              "same_connection",
+              "sync_then_send",
+              "same_ip"
+            ],
+            "properties": {
+              "index": {
+                "type": "integer"
+              },
+              "payload_sha256": {
+                "type": "string"
+              },
+              "linked": {
+                "type": "boolean"
+              },
+              "linked_by": {
+                "type": "array",
+                "items": {
+                  "type": "string"
+                }
+              },
+              "same_connection": {
+                "type": "boolean"
+              },
+              "sync_then_send": {
+                "type": "boolean"
+              },
+              "same_ip": {
+                "type": "boolean"
+              },
+              "tip_to_send_s": {
+                "type": [
+                  "number",
+                  "null"
+                ]
+              }
+            }
+          }
+        },
+        "sync_sessions": {
+          "type": "integer"
+        },
+        "fingerprint_linked_sessions": {
+          "type": "integer"
+        },
+        "upstream_connections": {
+          "type": "integer"
+        },
+        "median_tip_to_send_s": {
+          "type": [
+            "number",
+            "null"
+          ]
+        }
+      }
+    }
+  ],
+  "title": "ghost --json attack"
+}

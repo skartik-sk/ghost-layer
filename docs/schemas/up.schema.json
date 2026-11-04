@@ -1,0 +1,53 @@
+{
+  "$schema": "https://json-schema.org/draft/2020-12/schema",
+  "type": "object",
+  "required": [
+    "schema_version",
+    "ok",
+    "listen",
+    "sync_upstream",
+    "broadcast_upstream",
+    "nym",
+    "profile",
+    "send_mode"
+  ],
+  "properties": {
+    "schema_version": {
+      "const": 1
+    },
+    "ok": {
+      "type": "boolean"
+    },
+    "listen": {
+      "type": "string"
+    },
+    "sync_upstream": {
+      "type": "string"
+    },
+    "broadcast_upstream": {
+      "type": "string"
+    },
+    "nym": {
+      "type": "boolean"
+    },
+    "profile": {
+      "enum": [
+        "demo",
+        "privacy"
+      ]
+    },
+    "send_mode": {
+      "enum": [
+        "hold",
+        "queue"
+      ]
+    },
+    "resumed_pending": {
+      "type": "integer"
+    },
+    "held_nym_only": {
+      "type": "integer"
+    }
+  },
+  "title": "ghost --json up"
+}

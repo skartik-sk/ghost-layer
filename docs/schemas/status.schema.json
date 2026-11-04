@@ -1,0 +1,112 @@
+{
+  "$schema": "https://json-schema.org/draft/2020-12/schema",
+  "type": "object",
+  "required": [
+    "schema_version",
+    "ok",
+    "broadcasts"
+  ],
+  "properties": {
+    "schema_version": {
+      "const": 1
+    },
+    "ok": {
+      "type": "boolean"
+    },
+    "broadcasts": {
+      "type": "array",
+      "items": {
+        "type": "object",
+        "required": [
+          "row",
+          "explorer",
+          "delay_s"
+        ],
+        "properties": {
+          "row": {
+            "type": "object",
+            "required": [
+              "txid",
+              "status",
+              "received_at_ms",
+              "scheduled_at_ms"
+            ],
+            "properties": {
+              "txid": {
+                "type": "string",
+                "pattern": "^[0-9a-f]{64}$"
+              },
+              "status": {
+                "enum": [
+                  "pending",
+                  "accepted",
+                  "rejected",
+                  "failed"
+                ]
+              },
+              "received_at_ms": {
+                "type": "integer"
+              },
+              "scheduled_at_ms": {
+                "type": "integer"
+              },
+              "sent_at_ms": {
+                "type": [
+                  "integer",
+                  "null"
+                ]
+              },
+              "conn_id": {
+                "type": [
+                  "integer",
+                  "null"
+                ]
+              },
+              "transport": {
+                "type": [
+                  "string",
+                  "null"
+                ]
+              },
+              "endpoint": {
+                "type": [
+                  "string",
+                  "null"
+                ]
+              },
+              "error_code": {
+                "type": [
+                  "integer",
+                  "null"
+                ]
+              },
+              "error_message": {
+                "type": [
+                  "string",
+                  "null"
+                ]
+              },
+              "mode": {
+                "type": [
+                  "string",
+                  "null"
+                ]
+              }
+            }
+          },
+          "explorer": {
+            "type": "array",
+            "items": {
+              "type": "string",
+              "pattern": "^https://"
+            }
+          },
+          "delay_s": {
+            "type": "number"
+          }
+        }
+      }
+    }
+  },
+  "title": "ghost --json status"
+}

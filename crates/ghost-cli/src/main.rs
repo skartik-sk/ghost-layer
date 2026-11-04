@@ -8,16 +8,22 @@ use std::process::ExitCode;
 use std::sync::Arc;
 
 use ghost_core::broadcast::{Policy, Queue, Scheduler};
+use ghost_core::events::EventLog;
 use ghost_core::grid::BlockCache;
 use ghost_gateway::{FreshConnBroadcaster, SendMode};
 
 use clap::{Parser, Subcommand};
+
+mod dashboard;
+mod mcp;
+mod viewkey;
+mod pay;
 use ghost_transport::proto::{ChainSpec, Empty, TxFilter};
 use ghost_transport::{Transport, Upstream};
 use serde_json::json;
 
-const DEFAULT_SERVER: &str = "testnet.zec.rocks:443";
-const DEFAULT_LISTEN: &str = "127.0.0.1:9067";
+pub(crate) const DEFAULT_SERVER: &str = "testnet.zec.rocks:443";
+pub(crate) const DEFAULT_LISTEN: &str = "127.0.0.1:9067";
 
 #[derive(Parser)]
 #[command(name = "ghost", version, about = "Ghost Layer: unlink your Zcash payments from your wallet sync")]
@@ -39,6 +45,12 @@ struct Cli {
 enum Cmd {
     /// Start the gateway; point your wallet at 127.0.0.1:9067
     Up(UpArgs),
+    /// Send a private payment in one command: gateway → sync → send (random delay, fresh connection) → mined
+    Pay(pay::PayArgs),
+    /// Live local web page: what the server sees, queue countdowns, grid, attacker view (127.0.0.1:9070)
+    Dashboard(dashboard::DashArgs),
+    /// MCP server (stdio) for AI agents: read-only tools; ghost_pay only with --allow-pay + caps
+    Mcp(mcp::McpArgs),
     /// Plain-language explanation of the three leaks and what Ghost Layer closes
     Explain,
     /// Linkage heuristics over an observer log (ShadeCheck events.jsonl) — the attacker's view
@@ -66,9 +78,12 @@ enum Cmd {
         /// Output markdown file (default evidence/BEFORE_AFTER.md or evidence/ATTACK_RESULTS.md)
         #[arg(long)]
         out: Option<PathBuf>,
-        /// Extra note for the Nym column (e.g. measured `ghost ip --nym` result)
+        /// Extra note for the Nym column's same-IP row (e.g. the measured exits)
         #[arg(long)]
         nym_note: Option<String>,
+        /// Ghost Layer upstream event log of the testnet runs through `ghost up --nym`
+        #[arg(long)]
+        nym_events: Option<PathBuf>,
     },
     /// Which IP the server sees on the SYNC and BROADCAST paths (real measurement)
     Ip {
@@ -83,6 +98,10 @@ enum Cmd {
     /// Is this tx mined? Height, confirmations, explorer links (exit 0 only when mined)
     Verify {
         txid: String,
+        /// Unified full viewing key (uviewtest1…): decrypt and show what this tx paid to that wallet.
+        /// Read-only; never a spending key.
+        #[arg(long)]
+        ufvk: Option<String>,
         #[arg(long, default_value = DEFAULT_SERVER)]
         server: String,
         /// Ask through the Nym BROADCAST client (asking from your own IP, or via the sync exit, links you to the tx)
@@ -122,10 +141,17 @@ struct UpArgs {
     send_mode: String,
     #[command(flatten)]
     nym: NymArgs,
+    /// Record what the server can observe (upstream requests: connection, method, time, heights)
+    /// to this JSONL file; read by `ghost attack` and `ghost dashboard`. Default: ~/.ghost-layer/upstream-events.jsonl
+    #[arg(long)]
+    event_log: Option<PathBuf>,
+    /// Don't record the upstream event log
+    #[arg(long)]
+    no_event_log: bool,
 }
 
 #[derive(clap::Args, Clone)]
-struct NymArgs {
+pub(crate) struct NymArgs {
     /// Route sync and broadcast through two Nym SOCKS5 clients with different exits (fail closed)
     #[arg(long)]
     nym: bool,
@@ -174,7 +200,7 @@ impl NymArgs {
 }
 
 /// Error carrying its exit code and a "what to do next" hint.
-struct Fail {
+pub(crate) struct Fail {
     code: u8,
     msg: String,
     hint: &'static str,
@@ -210,7 +236,7 @@ fn main() -> ExitCode {
         Ok(code) => ExitCode::from(code),
         Err(f) => {
             if json {
-                println!("{}", json!({"ok": false, "error": f.msg, "hint": f.hint}));
+                println!("{}", json!({"schema_version": 1, "ok": false, "error": f.msg, "hint": f.hint}));
             } else {
                 eprintln!("❌ {}\n   → {}", f.msg, f.hint);
             }
@@ -223,17 +249,20 @@ async fn run(cli: Cli) -> Result<u8, Fail> {
     match cli.cmd {
         Cmd::Up(a) => up(a, cli.json).await,
         Cmd::Status => status(cli.json).await,
+        Cmd::Pay(a) => pay::pay(a, cli.json).await,
+        Cmd::Dashboard(a) => dashboard::dashboard(a, cli.json).await,
+        Cmd::Mcp(a) => mcp::mcp(a).await,
         Cmd::Explain => {
             explain(cli.json);
             Ok(0)
         }
         Cmd::Ip { nym, show_real_ip } => ip(nym, show_real_ip, cli.json).await,
         Cmd::Attack { events, threshold, single_ip } => attack(&events, threshold, single_ip, cli.json),
-        Cmd::Report { before, after, attack: true, threshold, out, nym_note } => {
-            attack_report(&before, &after, threshold, out, nym_note.as_deref(), cli.json)
+        Cmd::Report { before, after, attack: true, threshold, out, nym_note, nym_events } => {
+            attack_report(&before, &after, threshold, out, nym_note.as_deref(), nym_events.as_deref(), cli.json)
         }
         Cmd::Report { before, after, out, .. } => shadecheck_report(&before, &after, out, cli.json),
-        Cmd::Verify { txid, server, nym } => verify(&txid, &server, nym, cli.json).await,
+        Cmd::Verify { txid, server, nym, ufvk } => verify(&txid, &server, nym, ufvk.as_deref(), cli.json).await,
         Cmd::Doctor { server, listen, nym } => doctor(&server, listen, nym, cli.json).await,
     }
 }
@@ -266,13 +295,19 @@ async fn up(a: UpArgs, json: bool) -> Result<u8, Fail> {
 
     a.nym.require_up().await?;
     let (sync, bcast) = a.nym.transports(upstream.clone(), bcast_upstream.clone())?;
-    let broadcaster = FreshConnBroadcaster { transport: bcast };
+    let events = Arc::new(if a.no_event_log {
+        EventLog::disabled()
+    } else {
+        let p = a.event_log.clone().unwrap_or_else(|| data_dir().join("upstream-events.jsonl"));
+        EventLog::open(&p).map_err(|e| Fail::runtime(format!("cannot open event log {}: {e:#}", p.display()), "pass --event-log <path> or --no-event-log"))?
+    });
+    let broadcaster = FreshConnBroadcaster { transport: bcast, events: events.clone() };
     let scheduler = Scheduler::new(open_queue()?, policy, broadcaster, if a.nym.nym { "nym" } else { "direct" });
     // One cache per upstream server: blocks from different chains must never mix.
     let cache_name = format!("blocks-{}-{}.sqlite", upstream.host.replace(|c: char| !c.is_ascii_alphanumeric(), "_"), upstream.port);
     let cache = BlockCache::open(&data_dir().join(cache_name))
         .map_err(|e| Fail::runtime(format!("cannot open block cache: {e:#}"), "check that ~/.ghost-layer is writable"))?;
-    let gw = ghost_gateway::Gateway::connect(&sync, scheduler.clone(), send_mode, cache).await.map_err(|e| {
+    let gw = ghost_gateway::Gateway::connect(&sync, scheduler.clone(), send_mode, cache, events).await.map_err(|e| {
         Fail::runtime(format!("cannot reach upstream {}: {e:#}", upstream.uri()), "run `ghost doctor` to diagnose")
     })?;
     let (resumed, held) = scheduler
@@ -280,7 +315,7 @@ async fn up(a: UpArgs, json: bool) -> Result<u8, Fail> {
         .map_err(|e| Fail::runtime(format!("cannot resume queue: {e:#}"), "inspect ~/.ghost-layer/ghost.sqlite"))?;
 
     if json {
-        println!("{}", json!({"ok": true, "listen": listen.to_string(), "sync_upstream": upstream.uri(),
+        println!("{}", json!({"schema_version": 1, "ok": true, "listen": listen.to_string(), "sync_upstream": upstream.uri(),
             "broadcast_upstream": bcast_upstream.uri(), "nym": a.nym.nym, "profile": a.profile,
             "policy": policy, "send_mode": a.send_mode, "resumed_pending": resumed, "held_nym_only": held}));
     } else {
@@ -312,7 +347,7 @@ async fn up(a: UpArgs, json: bool) -> Result<u8, Fail> {
     Ok(0)
 }
 
-fn explorer_links(txid: &str) -> Vec<String> {
+pub(crate) fn explorer_links(txid: &str) -> Vec<String> {
     vec![
         format!("https://testnet.zcashexplorer.app/transactions/{txid}"),
         format!("https://zexplorer.app/testnet/tx/{txid}"),
@@ -336,7 +371,7 @@ const EXPLAIN: &[(&str, &str, &str, &str)] = &[
 fn explain(json: bool) {
     if json {
         let v: Vec<_> = EXPLAIN.iter().map(|(k, leak, why, fix)| json!({"leak": k, "what": leak, "why": why, "ghost_layer": fix})).collect();
-        println!("{}", json!({"ok": true, "leaks": v, "not_hidden": ["that a transaction exists and its fee",
+        println!("{}", json!({"schema_version": 1, "ok": true, "leaks": v, "not_hidden": ["that a transaction exists and its fee",
             "that someone syncs (coarse grid cells, tip cell partial)", "tree-state heights, pool filter, transparent-address queries",
             "Nym use is visible to your ISP"]}));
         return;
@@ -354,7 +389,11 @@ fn attack(events: &std::path::Path, threshold: f64, single_ip: bool, json: bool)
     let a = ghost_attacker::analyze(events, threshold, single_ip)
         .map_err(|e| Fail::usage(format!("{e:#}"), "pass the observer's events.jsonl"))?;
     if json {
-        println!("{}", serde_json::to_string(&a).expect("serializable"));
+        let mut v = serde_json::to_value(&a).expect("serializable");
+        v["schema_version"] = json!(1);
+        v["ok"] = json!(true);
+        v["rate"] = json!(a.rate());
+        println!("{v}");
         return Ok(0);
     }
     println!("👁  attacker view of {} ({} upstream connections, {} sync sessions)", a.source, a.upstream_connections, a.sync_sessions);
@@ -377,9 +416,14 @@ fn write_out(out: Option<PathBuf>, default: &str, body: &str) -> Result<PathBuf,
     Ok(path)
 }
 
-fn attack_report(before: &std::path::Path, after: &std::path::Path, t: f64, out: Option<PathBuf>, nym: Option<&str>, json: bool) -> Result<u8, Fail> {
+fn attack_report(before: &std::path::Path, after: &std::path::Path, t: f64, out: Option<PathBuf>, nym: Option<&str>,
+    nym_events: Option<&std::path::Path>, json: bool) -> Result<u8, Fail> {
     let load = |p| ghost_attacker::analyze(p, t, true).map_err(|e| Fail::usage(format!("{e:#}"), "pass two observer events.jsonl files"));
     let (b, a) = (load(before)?, load(after)?);
+    let ny = match nym_events {
+        Some(p) => Some(ghost_attacker::analyze(p, t, false).map_err(|e| Fail::usage(format!("{e:#}"), "pass the Nym runs' upstream-events.jsonl"))?),
+        None => None,
+    };
     let body = format!(
         "# Attacker linkage test (real runs)\n\nModel: honest-but-curious light-wallet server. Input: the server-side observer log \
 (ShadeCheck `events.jsonl`; session = one TCP connection). Generated by `ghost report --attack` at {}.\n\n\
@@ -388,11 +432,11 @@ Notes: local runs share one source IP (127.0.0.1), so the same-IP heuristic link
 only Nym changes that (see the Nym column). Range fingerprint = a session whose first requested start lies within {} blocks \
 below/at an earlier session's last end (resume-point chaining) matching exactly one earlier session.\n",
         chrono_now(), b.source, b.sends.len(), b.upstream_connections, a.source, a.sends.len(), a.upstream_connections,
-        ghost_attacker::markdown(&b, &a, nym), 10
+        ghost_attacker::markdown(&b, &a, ny.as_ref(), nym), 10
     );
     let path = write_out(out, "evidence/ATTACK_RESULTS.md", &body)?;
     if json {
-        println!("{}", json!({"ok": true, "out": path, "before": b, "after": a}));
+        println!("{}", json!({"schema_version": 1, "ok": true, "out": path, "before": b, "after": a, "nym": ny}));
     } else {
         println!("{body}\n→ wrote {}", path.display());
     }
@@ -450,20 +494,20 @@ fn shadecheck_report(before: &std::path::Path, after: &std::path::Path, out: Opt
     body.push_str("\n> ShadeCheck caveat: a pass means no violation of the tested rule was observed in the executed environment; it does not establish anonymity.\n");
     let path = write_out(out, "evidence/BEFORE_AFTER.md", &body)?;
     if json {
-        println!("{}", json!({"ok": true, "out": path}));
+        println!("{}", json!({"schema_version": 1, "ok": true, "out": path}));
     } else {
         println!("{body}\n→ wrote {}", path.display());
     }
     Ok(0)
 }
 
-fn nym_exit(id: &str) -> Option<String> {
+pub(crate) fn nym_exit(id: &str) -> Option<String> {
     let line = std::fs::read_to_string(data_dir().join("nym").join(format!("{id}.provider"))).ok()?;
     let mut it = line.split_whitespace();
     Some(format!("exit node {} ({})", it.next()?, it.next()?))
 }
 
-fn mask_ip(ip: &str) -> String {
+pub(crate) fn mask_ip(ip: &str) -> String {
     match ip.split('.').collect::<Vec<_>>().as_slice() {
         [a, b, _, _] => format!("{a}.{b}.x.x"),
         _ => ip.split(':').take(2).collect::<Vec<_>>().join(":") + ":…",
@@ -485,7 +529,7 @@ async fn ip(n: NymArgs, show_real_ip: bool, json: bool) -> Result<u8, Fail> {
     let unlinkable = matches!((&sync, &bcast, &direct), (Ok(s), Ok(b), Ok(d)) if s != b && s != d && b != d);
     if json {
         let path = |r: &Result<String, String>| if n.nym { show(r) } else { own(r) };
-        println!("{}", json!({"ok": sync.is_ok() && bcast.is_ok(), "nym": n.nym, "your_ip": own(&direct),
+        println!("{}", json!({"schema_version": 1, "ok": sync.is_ok() && bcast.is_ok(), "nym": n.nym, "your_ip": own(&direct),
             "sync_path_ip": path(&sync), "broadcast_path_ip": path(&bcast), "paths_unlinkable_by_ip": unlinkable,
             "sync_exit": nym_exit("ghost-sync"), "broadcast_exit": nym_exit("ghost-bcast")}));
     } else {
@@ -511,7 +555,7 @@ async fn status(json: bool) -> Result<u8, Fail> {
             .map(|r| json!({"row": r, "explorer": explorer_links(&r.txid),
                 "delay_s": (r.scheduled_at_ms - r.received_at_ms) as f64 / 1000.0}))
             .collect();
-        println!("{}", json!({"ok": true, "broadcasts": v}));
+        println!("{}", json!({"schema_version": 1, "ok": true, "broadcasts": v}));
         return Ok(0);
     }
     if rows.is_empty() {
@@ -539,7 +583,17 @@ async fn status(json: bool) -> Result<u8, Fail> {
     Ok(0)
 }
 
-async fn verify(txid: &str, server: &str, nym: NymArgs, json: bool) -> Result<u8, Fail> {
+/// On-chain state of a tx: (state, mined height, confirmations, tip).
+pub(crate) struct TxState {
+    pub state: &'static str,
+    pub height: Option<u64>,
+    pub confs: u64,
+    pub tip: u64,
+    /// Raw transaction bytes (empty if not found).
+    pub raw: Vec<u8>,
+}
+
+pub(crate) async fn tx_state(txid: &str, server: &str, nym: &NymArgs) -> Result<TxState, Fail> {
     let mut hash = hex::decode(txid).map_err(|_| Fail::usage("txid must be 64 hex chars", "copy the txid exactly as printed"))?;
     if hash.len() != 32 {
         return Err(Fail::usage("txid must be 64 hex chars", "copy the txid exactly as printed"));
@@ -556,21 +610,42 @@ async fn verify(txid: &str, server: &str, nym: NymArgs, json: bool) -> Result<u8
         .client;
     let tip = c.get_latest_block(ChainSpec {}).await.map_err(|e| Fail::runtime(e.to_string(), "run `ghost doctor`"))?.into_inner().height;
     let res = c.get_transaction(TxFilter { block: None, index: 0, hash }).await;
+    let mut raw = Vec::new();
     let (state, height, confs) = match res {
-        Ok(t) => match t.into_inner().height {
-            0 => ("mempool", None, 0),
-            u64::MAX => ("orphaned", None, 0),
-            h => ("mined", Some(h), tip.saturating_sub(h) + 1),
-        },
+        Ok(t) => {
+            let t = t.into_inner();
+            raw = t.data;
+            match t.height {
+                0 => ("mempool", None, 0),
+                u64::MAX => ("orphaned", None, 0),
+                h => ("mined", Some(h), tip.saturating_sub(h) + 1),
+            }
+        }
         Err(s) if s.code() == tonic::Code::NotFound || s.message().contains("not found") || s.message().contains("No such") => {
             ("not_found", None, 0)
         }
         Err(s) => return Err(Fail::runtime(format!("GetTransaction: {s}"), "retry; the server may be busy")),
     };
+    Ok(TxState { state, height, confs, tip, raw })
+}
+
+async fn verify(txid: &str, server: &str, nym: NymArgs, ufvk: Option<&str>, json: bool) -> Result<u8, Fail> {
+    let upstream = parse_upstream(server)?;
+    if let Some(k) = ufvk {
+        if !k.starts_with("uviewtest1") {
+            return Err(Fail::usage("--ufvk must be a testnet unified full viewing key (uviewtest1…)", "export it with your wallet; never pass a spending key"));
+        }
+    }
+    let TxState { state, height, confs, tip, raw } = tx_state(txid, server, &nym).await?;
+    let decrypted = match (ufvk, height) {
+        (Some(k), Some(h)) => Some(viewkey::decrypt(k, &raw, h)?),
+        (Some(_), None) => return Err(Fail::runtime(format!("tx is {state}: can only decrypt a mined tx"), "retry once it is mined")),
+        _ => None,
+    };
     let links = explorer_links(txid);
     if json {
-        println!("{}", json!({"ok": state == "mined", "txid": txid, "state": state, "height": height,
-            "confirmations": confs, "tip": tip, "explorer": links}));
+        println!("{}", json!({"schema_version": 1, "ok": state == "mined", "txid": txid, "state": state, "height": height,
+            "confirmations": confs, "tip": tip, "explorer": links, "decrypted": decrypted}));
     } else {
         match state {
             "mined" => println!("✅ mined at height {} — {confs} confirmation(s) (tip {tip})", height.unwrap()),
@@ -581,6 +656,14 @@ async fn verify(txid: &str, server: &str, nym: NymArgs, json: bool) -> Result<u8
         println!("   txid {txid}");
         for l in &links {
             println!("   🔗 {l}");
+        }
+        if let Some(outs) = &decrypted {
+            if outs.is_empty() {
+                println!("🔑 viewing key: no outputs of this tx belong to that wallet");
+            }
+            for o in outs {
+                println!("🔑 {} {} — {:.8} TAZ ({} zat), output #{}, memo: {}", o.pool, o.transfer, o.value_zat as f64 / 1e8, o.value_zat, o.index, o.memo);
+            }
         }
     }
     Ok(if state == "mined" { 0 } else { 1 })
@@ -653,7 +736,7 @@ async fn doctor(server: &str, listen: SocketAddr, nym: NymArgs, json: bool) -> R
     }
     let all_ok = checks.iter().all(|c| c.ok);
     if json {
-        println!("{}", json!({"ok": all_ok, "checks": checks}));
+        println!("{}", json!({"schema_version": 1, "ok": all_ok, "checks": checks}));
     } else {
         for c in &checks {
             println!("{} {:<20} {}", if c.ok { "✅" } else { "❌" }, c.name, c.detail);

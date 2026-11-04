@@ -22,3 +22,12 @@ tracing-subscriber.workspace = true
 ghost-core = { path = "../ghost-core" }
 hex.workspace = true
 ghost-attacker = { path = "../ghost-attacker" }
+rmcp.workspace = true
+schemars.workspace = true
+zcash_client_backend.workspace = true
+zcash_keys.workspace = true
+zcash_primitives.workspace = true
+zcash_protocol.workspace = true
+
+[dev-dependencies]
+jsonschema = "0.60.2"

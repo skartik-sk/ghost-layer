@@ -75,6 +75,8 @@ pub struct Row {
     pub endpoint: Option<String>,
     pub error_code: Option<i64>,
     pub error_message: Option<String>,
+    /// Privacy mode the tx was queued under ("nym" / "direct").
+    pub mode: Option<String>,
 }
 
 pub fn now_ms() -> i64 {
@@ -114,7 +116,7 @@ impl Queue {
     pub fn list(&self) -> anyhow::Result<Vec<Row>> {
         let db = self.db.lock().unwrap();
         let mut st = db.prepare(
-            "SELECT txid,status,received_at_ms,scheduled_at_ms,sent_at_ms,conn_id,transport,endpoint,error_code,error_message
+            "SELECT txid,status,received_at_ms,scheduled_at_ms,sent_at_ms,conn_id,transport,endpoint,error_code,error_message,mode
              FROM broadcasts ORDER BY received_at_ms",
         )?;
         let rows = st.query_map([], |r| {
@@ -129,6 +131,7 @@ impl Queue {
                 endpoint: r.get(7)?,
                 error_code: r.get(8)?,
                 error_message: r.get(9)?,
+                mode: r.get(10)?,
             })
         })?;
         Ok(rows.collect::<Result<_, _>>()?)

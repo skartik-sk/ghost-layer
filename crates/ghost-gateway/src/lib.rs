@@ -11,7 +11,10 @@ use std::pin::Pin;
 use std::sync::Arc;
 use std::sync::atomic::{AtomicU64, Ordering};
 
+use ghost_core::events::EventLog;
 use ghost_core::grid::{self, BlockCache};
+use serde_json::json;
+use sha2::{Digest, Sha256};
 use prost::Message;
 
 use ghost_core::broadcast::{Broadcaster, Outcome, Scheduler, Sent};
@@ -37,6 +40,7 @@ pub enum SendMode {
 /// Broadcasts each tx over a brand-new upstream connection, then drops it.
 pub struct FreshConnBroadcaster {
     pub transport: Transport,
+    pub events: Arc<EventLog>,
 }
 
 impl Broadcaster for FreshConnBroadcaster {
@@ -44,7 +48,10 @@ impl Broadcaster for FreshConnBroadcaster {
         let mut conn = self.transport.fresh().await?;
         info!(target: "upstream", conn = conn.id, path = "broadcast", transport = self.transport.label,
             method = "SendTransaction", "fresh connection opened for this tx only");
+        self.events.record("SendTransaction", "request", conn.id, self.transport.label,
+            json!({"payload_size": raw.len(), "payload_sha256": hex::encode(Sha256::digest(&raw))}));
         let resp = conn.client.send_transaction(RawTransaction { data: raw, height: 0 }).await?.into_inner();
+        self.events.record("SendTransaction", "response", conn.id, self.transport.label, json!({"error_code": resp.error_code}));
         Ok(Sent {
             conn_id: conn.id,
             transport: self.transport.label.to_string(),
@@ -57,6 +64,7 @@ impl Broadcaster for FreshConnBroadcaster {
 }
 
 pub struct Gateway {
+    events: Arc<EventLog>,
     sync_transport: Transport,
     /// One upstream SYNC connection per wallet connection (keyed by the wallet's local socket),
     /// so separate wallet sessions are separate connections upstream too.
@@ -80,12 +88,16 @@ const SESSION_IDLE: std::time::Duration = std::time::Duration::from_secs(120);
 struct GridFetcher {
     cache: BlockCache,
     tip: AtomicU64,
+    events: Arc<EventLog>,
+    label: &'static str,
 }
 
 impl GridFetcher {
     async fn refresh_tip(&self, mut c: Client, conn_id: u64) -> Result<u64, Status> {
         info!(target: "upstream", conn = conn_id, path = "sync", method = "GetLatestBlock", "tip refresh for grid planner");
+        self.events.record("GetLatestBlock", "request", conn_id, self.label, json!({}));
         let h = c.get_latest_block(ChainSpec {}).await?.into_inner().height;
+        self.events.record("GetLatestBlock", "response", conn_id, self.label, json!({"height": h}));
         self.tip.store(h, Ordering::Relaxed);
         Ok(h)
     }
@@ -101,6 +113,8 @@ impl GridFetcher {
         let method = if nullifiers { "GetBlockRangeNullifiers" } else { "GetBlockRange" };
         info!(target: "upstream", conn = conn_id, path = "sync", method, aligned = grid::is_aligned(cell.0, cell.1, tip),
             "range={}..={} (grid cell)", cell.0, cell.1);
+        self.events.record(method, "request", conn_id, self.label,
+            json!({"start_height": cell.0, "end_height": cell.1, "aligned": grid::is_aligned(cell.0, cell.1, tip)}));
         let req = BlockRange {
             start: Some(BlockId { height: cell.0, hash: vec![] }),
             end: Some(BlockId { height: cell.1, hash: vec![] }),
@@ -133,6 +147,7 @@ impl GridFetcher {
         if out.len() as u64 != cell.1 - cell.0 + 1 {
             return Err(bad(format!("got {} blocks, expected {}", out.len(), cell.1 - cell.0 + 1)));
         }
+        self.events.record(method, "response", conn_id, self.label, json!({"height": cell.1, "blocks": out.len()}));
         self.cache.put_cell(kind, cell, &out).map_err(internal)?;
         Ok(out)
     }
@@ -201,13 +216,14 @@ impl Gateway {
         scheduler: Arc<Scheduler<FreshConnBroadcaster>>,
         send_mode: SendMode,
         cache: BlockCache,
+        events: Arc<EventLog>,
     ) -> anyhow::Result<Self> {
         let mut probe = sync.fresh().await?;
         let tip = probe.client.get_latest_block(ChainSpec {}).await?.into_inner().height;
         info!(target: "upstream", conn = probe.id, transport = sync.label, server = %sync.upstream.uri(), tip, "startup probe ok (connection closed)");
         drop(probe);
-        let grid = Arc::new(GridFetcher { cache, tip: AtomicU64::new(tip) });
-        Ok(Self { sync_transport: sync.clone(), sessions: Default::default(), scheduler, send_mode, grid })
+        let grid = Arc::new(GridFetcher { cache, tip: AtomicU64::new(tip), events: events.clone(), label: sync.label });
+        Ok(Self { events, sync_transport: sync.clone(), sessions: Default::default(), scheduler, send_mode, grid })
     }
 
     /// The upstream SYNC connection for this wallet connection (opened on first use).
@@ -238,6 +254,7 @@ impl Gateway {
 
     fn log(&self, conn: u64, method: &str, detail: String) {
         info!(target: "upstream", conn, path = "sync", method, "{detail}");
+        self.events.record(method, "request", conn, self.sync_transport.label, json!({}));
     }
 }
 
@@ -269,9 +286,11 @@ macro_rules! streaming {
 #[tonic::async_trait]
 impl CompactTxStreamer for Gateway {
     async fn get_latest_block(&self, r: Request<ChainSpec>) -> Result<Response<BlockId>, Status> {
+        let (_, conn) = self.session(r.remote_addr()).await?;
         let resp: Result<Response<BlockId>, Status> = unary!(self, r, get_latest_block, "GetLatestBlock");
         if let Ok(b) = &resp {
             self.grid.tip.store(b.get_ref().height, Ordering::Relaxed);
+            self.events.record("GetLatestBlock", "response", conn, self.sync_transport.label, json!({"height": b.get_ref().height}));
         }
         resp
     }

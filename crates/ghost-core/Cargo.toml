@@ -16,3 +16,4 @@ zcash_primitives.workspace = true
 zcash_protocol.workspace = true
 nym-swizzle-zcash.workspace = true
 prost.workspace = true
+serde_json.workspace = true

@@ -10,6 +10,7 @@
 #   AMOUNT_ZAT      default 100000 (0.001 TAZ)
 #   ZCASH_DEVTOOL   default zcash-devtool
 #   MODE            nym (default; needs scripts/nym_setup.sh up) | direct | before (no Ghost Layer)
+#   EVENTS          optional: upstream event log path for `ghost up --event-log` (attacker analysis)
 set -euo pipefail
 cd "$(dirname "$0")/.."
 : "${WALLET_DIR:?}" "${IDENTITY:?}" "${TO_ADDRESS:?}"
@@ -36,7 +37,8 @@ if [[ "$MODE" == before ]]; then
   WS="$SERVER"
 else
   ! nc -z 127.0.0.1 9067 2>/dev/null || fail "port 9067 busy (stop the other gateway)"
-  "$GHOST" up ${NYMFLAG[@]+"${NYMFLAG[@]}"} --server "$SERVER" --profile demo >"$LOG.out" 2>"$LOG" &
+  EVFLAG=(); [[ -n "${EVENTS:-}" ]] && EVFLAG=(--event-log "$EVENTS")
+  "$GHOST" up ${NYMFLAG[@]+"${NYMFLAG[@]}"} ${EVFLAG[@]+"${EVFLAG[@]}"} --server "$SERVER" --profile demo >"$LOG.out" 2>"$LOG" &
   GW_PID=$!
   for _ in $(seq 1 240); do nc -z 127.0.0.1 9067 2>/dev/null && break; sleep 1; done
   nc -z 127.0.0.1 9067 || fail "ghost up did not start (see $LOG)"
