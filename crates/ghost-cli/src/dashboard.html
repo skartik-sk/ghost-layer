@@ -6,108 +6,132 @@
 <title>Ghost Wallet</title>
 <style>
 :root {
-  --bg: #f5f6f8; --card: #ffffff; --text: #15171c; --muted: #646b78; --border: #e1e4ea;
-  --good: #11763a; --good-bg: #e2f5e9; --bad: #b42318; --bad-bg: #fde7e4;
-  --warn: #8f5600; --warn-bg: #fff2d4; --accent: #4f46e5; --track: #d9dde5;
+  --canvas: #EEF1F5; --card: #FFFFFF; --sunk: #F6F8FA; --text: #121826; --muted: #5B6475; --border: #DCE1E8;
+  --accent: #0F766E; --accent-ink: #FFFFFF; --accent-soft: #E3F2EF;
+  --good: #0F6B45; --good-bg: #E2F3EA; --bad: #B42318; --bad-bg: #FDE8E6; --warn: #8A5A00; --warn-bg: #FFF1D6;
+  --track: #E3E7ED; --shadow: 0 1px 2px rgba(18,24,38,.06), 0 4px 16px rgba(18,24,38,.05);
   --mono: ui-monospace, SFMono-Regular, Menlo, Consolas, "Liberation Mono", monospace;
+  --sans: system-ui, -apple-system, "Segoe UI", Roboto, "Helvetica Neue", Arial, sans-serif;
+  --bg: var(--canvas);
 }
 @media (prefers-color-scheme: dark) {
-  :root:not([data-theme="light"]), :root[data-theme="dark"] {
-    --bg: #0d1015; --card: #161a21; --text: #e6e9ef; --muted: #8b93a1; --border: #2a303b;
-    --good: #5fd38a; --good-bg: #123323; --bad: #ff8a80; --bad-bg: #3a1716;
-    --warn: #f3bd55; --warn-bg: #3a2c10; --accent: #9b97ff; --track: #343b48;
+  :root:not([data-theme="light"]) {
+    --canvas: #0D121A; --card: #151C27; --sunk: #10161F; --text: #E7ECF3; --muted: #97A1B2; --border: #263041;
+    --accent: #2BB3A3; --accent-ink: #06201D; --accent-soft: #10302D;
+    --good: #5FD39A; --good-bg: #11301F; --bad: #FF8F84; --bad-bg: #3A1716; --warn: #F2C15A; --warn-bg: #36290E;
+    --track: #2A3446; --shadow: 0 1px 2px rgba(0,0,0,.4);
   }
 }
 * { box-sizing: border-box; }
 html, body { margin: 0; }
-body {
-  font-family: system-ui, -apple-system, "Segoe UI", Roboto, "Helvetica Neue", Arial, sans-serif;
-  background: var(--bg); color: var(--text); font-size: 15px; line-height: 1.45;
-  padding: 16px; min-width: 0; overflow-wrap: anywhere;
-}
-a { color: var(--accent); }
-header { display: flex; flex-wrap: wrap; align-items: center; justify-content: space-between; gap: 8px; margin: 0 0 16px; }
-h1 { font-size: 20px; margin: 0; }
-.status { font-size: 13px; color: var(--muted); display: flex; align-items: center; gap: 6px; }
-.dot { width: 10px; height: 10px; border-radius: 50%; background: var(--track); display: inline-block; }
-.dot.ok { background: var(--good); }
-.dot.bad { background: var(--bad); }
-.cards { display: grid; gap: 16px; grid-template-columns: repeat(auto-fit, minmax(min(100%, 300px), 1fr)); }
-.card { background: var(--card); border: 1px solid var(--border); border-radius: 12px; padding: 16px; min-width: 0; }
-.card h2 { font-size: 13px; margin: 0 0 12px; color: var(--muted); text-transform: uppercase; letter-spacing: .05em; }
+body { font-family: var(--sans); background: var(--canvas); color: var(--text); font-size: 15px; line-height: 1.5;
+  padding: 0 0 48px; min-width: 0; overflow-wrap: anywhere; -webkit-font-smoothing: antialiased; }
+a { color: var(--accent); text-underline-offset: 2px; }
+:focus-visible { outline: 2px solid var(--accent); outline-offset: 2px; border-radius: 6px; }
+header { display: flex; flex-wrap: wrap; align-items: center; justify-content: space-between; gap: 12px;
+  padding: 18px max(16px, calc((100vw - 1200px) / 2)); background: var(--card); border-bottom: 1px solid var(--border); }
+h1 { font-size: 19px; margin: 0; font-weight: 700; letter-spacing: -.01em; display: flex; align-items: baseline; gap: 10px; flex-wrap: wrap; }
+h1 .muted { font-weight: 500; font-size: 14px; }
+.status { font-size: 13px; color: var(--muted); display: flex; align-items: center; gap: 8px; background: var(--sunk);
+  border: 1px solid var(--border); padding: 5px 12px; border-radius: 999px; }
+.dot { width: 8px; height: 8px; border-radius: 50%; background: var(--track); display: inline-block; }
+.dot.ok { background: var(--good); box-shadow: 0 0 0 3px var(--good-bg); }
+.dot.bad { background: var(--bad); box-shadow: 0 0 0 3px var(--bad-bg); }
+nav.tabs { display: flex; gap: 4px; margin: 20px auto 20px; padding: 4px; width: fit-content; max-width: calc(100% - 32px);
+  background: var(--sunk); border: 1px solid var(--border); border-radius: 12px; overflow-x: auto; }
+nav.tabs button { font: inherit; font-size: 14px; font-weight: 600; background: none; border: 0; color: var(--muted);
+  padding: 8px 18px; border-radius: 9px; cursor: pointer; white-space: nowrap; }
+nav.tabs button:hover { color: var(--text); }
+nav.tabs button[aria-selected="true"] { background: var(--card); color: var(--text); box-shadow: var(--shadow); }
+main.cards, .panel { max-width: 1200px; margin: 0 auto; padding: 0 16px; }
+.panel[hidden], main[hidden] { display: none; }
+.cards { display: grid; gap: 16px; grid-template-columns: repeat(auto-fit, minmax(min(100%, 340px), 1fr)); align-items: start; }
+.card { background: var(--card); border: 1px solid var(--border); border-radius: 14px; padding: 22px; min-width: 0; box-shadow: var(--shadow); }
+.card h2 { font-size: 15px; margin: 0 0 14px; color: var(--text); font-weight: 650; letter-spacing: -.005em; }
+.panel-grid { display: grid; gap: 16px; grid-template-columns: minmax(0, 1.25fr) minmax(0, 1fr); align-items: start; }
+@media (max-width: 860px) { .panel-grid { grid-template-columns: 1fr; } }
 .muted { color: var(--muted); }
-.small { font-size: 12px; }
+.small { font-size: 13px; }
 .good { color: var(--good); }
 .bad { color: var(--bad); }
 .warn { color: var(--warn); }
-.mono { font-family: var(--mono); }
+.mono { font-family: var(--mono); font-size: 12.5px; }
 .inline { display: flex; flex-wrap: wrap; gap: 6px 10px; align-items: center; }
-.pill { display: inline-block; padding: 2px 8px; border-radius: 999px; font-size: 12px; font-weight: 600; background: var(--track); color: var(--text); white-space: nowrap; }
+.pill { display: inline-block; padding: 2px 9px; border-radius: 999px; font-size: 12px; font-weight: 600; background: var(--track); color: var(--text); white-space: nowrap; }
 .pill.good { background: var(--good-bg); color: var(--good); }
 .pill.bad { background: var(--bad-bg); color: var(--bad); }
 .pill.warn { background: var(--warn-bg); color: var(--warn); }
-.verdict { padding: 10px 12px; border-radius: 8px; margin: 12px 0; font-weight: 600; }
+.verdict { padding: 12px 14px; border-radius: 10px; margin: 12px 0; font-weight: 600; }
 .verdict.good { background: var(--good-bg); color: var(--good); }
 .verdict.bad { background: var(--bad-bg); color: var(--bad); }
 .verdict.warn { background: var(--warn-bg); color: var(--warn); }
-.ips { display: grid; gap: 12px; grid-template-columns: repeat(auto-fit, minmax(130px, 1fr)); }
+.ips { display: grid; gap: 12px; grid-template-columns: repeat(auto-fit, minmax(140px, 1fr)); }
+.ips > div { background: var(--sunk); border: 1px solid var(--border); border-radius: 10px; padding: 12px; }
 .label { font-size: 12px; color: var(--muted); }
-.ip { font-family: var(--mono); font-size: 16px; word-break: break-all; }
-.big { font-size: 32px; font-weight: 700; line-height: 1.1; }
-.row { padding: 10px 0; border-top: 1px solid var(--border); }
+.ip { font-family: var(--mono); font-size: 17px; font-weight: 600; word-break: break-all; }
+.big { font-size: 34px; font-weight: 750; line-height: 1.1; letter-spacing: -.02em; font-variant-numeric: tabular-nums; }
+.row { padding: 12px 0; border-top: 1px solid var(--border); }
 .row:first-child { border-top: 0; padding-top: 0; }
-.countdown { font-weight: 600; color: var(--warn); font-variant-numeric: tabular-nums; }
+.countdown { font-weight: 650; color: var(--warn); font-variant-numeric: tabular-nums; }
 .err { color: var(--bad); font-size: 13px; }
-.bar { height: 6px; border-radius: 3px; background: var(--track); overflow: hidden; margin-top: 4px; }
+.bar { height: 6px; border-radius: 3px; background: var(--track); overflow: hidden; margin-top: 6px; }
 .bar span { display: block; height: 100%; background: var(--good); }
 .bar span.bad { background: var(--bad); }
-.ranges { display: flex; flex-direction: column; gap: 8px; margin-top: 12px; }
-.ba { display: flex; align-items: center; justify-content: center; gap: 14px; flex-wrap: wrap; text-align: center; }
-.arrow { font-size: 28px; color: var(--muted); }
-.links { display: flex; flex-wrap: wrap; gap: 4px 12px; margin-top: 4px; font-size: 13px; }
-.counts { display: flex; gap: 28px; }
-nav.tabs { display: flex; gap: 6px; margin: 0 0 16px; border-bottom: 1px solid var(--border); }
-nav.tabs button { font: inherit; background: none; border: 0; border-bottom: 2px solid transparent; color: var(--muted);
-  padding: 8px 12px; cursor: pointer; margin-bottom: -1px; }
-nav.tabs button[aria-selected="true"] { color: var(--text); border-bottom-color: var(--accent); font-weight: 600; }
-.panel { max-width: 640px; }
-.panel[hidden], main[hidden] { display: none; }
-form { display: flex; flex-direction: column; gap: 12px; }
-label { display: flex; flex-direction: column; gap: 4px; font-size: 13px; color: var(--muted); }
-input, textarea { font: inherit; color: var(--text); background: var(--bg); border: 1px solid var(--border); border-radius: 8px;
-  padding: 10px; width: 100%; }
-textarea { font-family: var(--mono); font-size: 12px; min-height: 90px; resize: vertical; }
-input:focus, textarea:focus { outline: 2px solid var(--accent); outline-offset: 1px; }
-button.primary { font: inherit; font-weight: 600; background: var(--accent); color: #fff; border: 0; border-radius: 8px;
-  padding: 10px 16px; cursor: pointer; align-self: flex-start; }
-button.primary:disabled { opacity: .5; cursor: progress; }
-.log { font-family: var(--mono); font-size: 12px; background: var(--bg); border: 1px solid var(--border); border-radius: 8px;
-  padding: 10px; white-space: pre-wrap; margin-top: 12px; max-height: 260px; overflow: auto; }
-.result { margin-top: 12px; padding: 12px; border-radius: 8px; }
-.result.okbox { background: var(--good-bg); color: var(--good); }
-.result.badbox { background: var(--bad-bg); color: var(--bad); }
-.result .mono { color: var(--text); }
-.big-count { font-size: 28px; font-weight: 700; }
+.ranges { display: flex; flex-direction: column; gap: 10px; margin-top: 14px; }
+.ba { display: flex; align-items: center; justify-content: center; gap: 18px; flex-wrap: wrap; text-align: center; }
+.arrow { font-size: 26px; color: var(--muted); }
+.links { display: flex; flex-wrap: wrap; gap: 4px 14px; margin-top: 6px; font-size: 13px; }
+.counts { display: flex; gap: 32px; }
+form { display: flex; flex-direction: column; gap: 14px; }
+label { display: flex; flex-direction: column; gap: 6px; font-size: 13px; font-weight: 600; color: var(--text); }
+input, textarea { font: inherit; font-size: 15px; font-weight: 400; color: var(--text); background: var(--sunk); border: 1px solid var(--border);
+  border-radius: 10px; padding: 11px 12px; width: 100%; }
+input::placeholder, textarea::placeholder { color: var(--muted); opacity: .8; }
+textarea { font-family: var(--mono); font-size: 12.5px; min-height: 104px; resize: vertical; }
+input:focus, textarea:focus { outline: 2px solid var(--accent); outline-offset: 0; border-color: transparent; background: var(--card); }
+button.primary { font: inherit; font-size: 15px; font-weight: 650; background: var(--accent); color: var(--accent-ink); border: 0; border-radius: 10px;
+  padding: 11px 20px; cursor: pointer; align-self: flex-start; }
+button.primary:hover { filter: brightness(1.08); }
+button.primary:disabled { opacity: .45; cursor: not-allowed; filter: none; }
+.log { font-family: var(--mono); font-size: 12.5px; line-height: 1.6; background: var(--sunk); border: 1px solid var(--border); border-radius: 10px;
+  padding: 12px 14px; white-space: pre-wrap; margin-top: 14px; max-height: 260px; overflow: auto; }
+.result { margin-top: 14px; padding: 14px 16px; border-radius: 12px; line-height: 1.55; }
+.result > div + div { margin-top: 2px; }
+.result.okbox { background: var(--good-bg); color: var(--good); border: 1px solid color-mix(in srgb, var(--good) 25%, transparent); }
+.result.badbox { background: var(--bad-bg); color: var(--bad); border: 1px solid color-mix(in srgb, var(--bad) 25%, transparent); }
+.result .mono { color: var(--text); word-break: break-all; }
+.big-count { font-size: 22px; font-weight: 700; margin-top: 16px; font-variant-numeric: tabular-nums; color: var(--warn); }
+.big-count:empty { display: none; }
 .row2 { display: grid; grid-template-columns: 2fr 1fr; gap: 12px; }
 @media (max-width: 480px) { .row2 { grid-template-columns: 1fr; } }
+.lede { margin: -6px 0 16px; color: var(--muted); font-size: 14px; }
+ol.steps { list-style: none; counter-reset: s; margin: 0; padding: 0; display: flex; flex-direction: column; gap: 14px; }
+ol.steps li { counter-increment: s; display: grid; grid-template-columns: 28px 1fr; gap: 12px; align-items: start; }
+ol.steps li::before { content: counter(s); width: 28px; height: 28px; border-radius: 50%; background: var(--accent-soft); color: var(--accent);
+  font-weight: 700; font-size: 13px; display: grid; place-items: center; }
+ol.steps b { display: block; font-size: 14px; }
+ol.steps span { color: var(--muted); font-size: 13px; }
+.note { margin-top: 18px; padding-top: 14px; border-top: 1px solid var(--border); font-size: 13px; color: var(--muted); }
+@media (prefers-reduced-motion: no-preference) { nav.tabs button, button.primary { transition: background .15s, color .15s, filter .15s; } }
 </style>
 </head>
 <body>
 <header>
-  <h1>👻 Ghost Wallet <span class="muted small">built on Ghost Layer</span></h1>
+  <h1>👻 Ghost Wallet <span class="muted">private Zcash payments, built on Ghost Layer</span></h1>
   <div class="status"><span class="dot" id="dot"></span><span id="age">connecting…</span></div>
 </header>
 
 <nav class="tabs" role="tablist">
   <button role="tab" id="t-pay" aria-selected="false" data-tab="pay">Pay</button>
   <button role="tab" id="t-proof" aria-selected="false" data-tab="proof">Proof</button>
-  <button role="tab" id="t-live" aria-selected="true" data-tab="live">Live: what the server sees</button>
+  <button role="tab" id="t-live" aria-selected="true" data-tab="live">What the server sees</button>
 </nav>
 
 <section class="panel" id="tab-pay" hidden>
+  <div class="panel-grid">
   <div class="card">
-    <h2>Send a private payment (testnet)</h2>
-    <p class="muted small" id="pay-note">Your wallet signs it locally; Ghost Layer holds it for a random delay, then broadcasts on a fresh connection.</p>
+    <h2>Send a private payment</h2>
+    <p class="lede" id="pay-note">Your wallet signs it locally; Ghost Layer holds it for a random delay, then broadcasts on a fresh connection.</p>
     <form id="pay-form">
       <label>To (utest1…)<input id="pay-to" required autocomplete="off" spellcheck="false" placeholder="utest1…"></label>
       <div class="row2">
@@ -118,12 +142,25 @@ button.primary:disabled { opacity: .5; cursor: progress; }
     </form>
     <div id="pay-out"></div>
   </div>
+  <aside class="card" aria-label="How Ghost protects this payment">
+    <h2>What happens when you send</h2>
+    <ol class="steps">
+      <li><div><b>Sync through Ghost</b><span>Your wallet catches up in whole 1152-block grid cells, through one Nym exit.</span></div></li>
+      <li><div><b>Sign on your machine</b><span>Your wallet signs the payment. Keys never leave it; Ghost only relays bytes.</span></div></li>
+      <li><div><b>Wait a random delay</b><span>Ghost holds the payment for 10–40 seconds, so it can’t be timed against your sync.</span></div></li>
+      <li><div><b>Broadcast on a fresh connection</b><span>A brand-new connection through a different Nym exit, never the sync one.</span></div></li>
+      <li><div><b>Mined</b><span>You get the explorer link once it’s in a block (about a minute on testnet).</span></div></li>
+    </ol>
+    <p class="note">Amount, sender, receiver and memo are shielded on-chain. The server sees two unrelated strangers at unrelated times.</p>
+  </aside>
+  </div>
 </section>
 
 <section class="panel" id="tab-proof" hidden>
+  <div class="panel-grid">
   <div class="card">
-    <h2>Create a ZecProof for a payment you sent</h2>
-    <p class="muted small">Reveals only that one output (recipient, amount, memo). Your viewing key never leaves this machine.</p>
+    <h2>Prove a payment you sent</h2>
+    <p class="lede">Creates a ZecProof that reveals only that one payment: recipient, amount and memo. Your viewing key never leaves this machine.</p>
     <form id="pc-form">
       <label>Transaction id<input id="pc-txid" required autocomplete="off" spellcheck="false" placeholder="64 hex characters"></label>
       <label>Message (optional label, not signed)<input id="pc-msg" maxlength="256" placeholder="invoice #42"></label>
@@ -131,13 +168,15 @@ button.primary:disabled { opacity: .5; cursor: progress; }
     </form>
     <div id="pc-out"></div>
   </div>
-  <div class="card" style="margin-top:16px">
+  <div class="card">
     <h2>Verify a ZecProof</h2>
+    <p class="lede">Paste a proof someone gave you. Ghost checks it against the chain.</p>
     <form id="pv-form">
       <label>Proof<textarea id="pv-proof" required spellcheck="false" placeholder="zecproof1…"></textarea></label>
       <button class="primary" type="submit" id="pv-btn">Verify against the chain</button>
     </form>
     <div id="pv-out"></div>
+  </div>
   </div>
 </section>
 
@@ -610,8 +649,11 @@ button.primary:disabled { opacity: .5; cursor: progress; }
         resultBox(out, true, [['✅ VALID: ' + (r.value_zat / 1e8).toFixed(8) + ' TAZ was paid'], ['to ' + r.recipient, 'mono small'],
           ['memo: ' + r.memo], ['mined at height ' + r.height + ' · note commitment matches the chain'],
           r.msg ? ['message (not signed): ' + r.msg, 'small'] : ['', 'small'], ['proves the payment happened, not who presents it', 'small']], r.explorer);
+      } else if (r.reason) {
+        resultBox(out, false, [['❌ INVALID: ' + r.reason]]);
       } else {
-        resultBox(out, false, [['❌ INVALID: ' + (r.reason || r.error || 'proof rejected')]]);
+        // Not a verdict on the proof: the check itself couldn't run (e.g. network or Nym exit down).
+        resultBox(out, false, [['⚠️ Couldn’t check the proof right now: ' + (r.error || 'unknown error')], ['→ ' + (r.hint || 'try again in a moment'), 'small']]);
       }
     });
   });
