@@ -1,0 +1,12 @@
+[package]
+name = "ghost-cli"
+version.workspace = true
+edition.workspace = true
+license.workspace = true
+
+[[bin]]
+name = "ghost"
+path = "src/main.rs"
+
+[dependencies]
+ghost-transport = { path = "../ghost-transport" }
