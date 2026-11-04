@@ -3,3 +3,4 @@ target/
 *.age
 wallets/
 .env
+.DS_Store

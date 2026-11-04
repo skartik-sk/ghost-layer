@@ -1,0 +1,15 @@
+2026-11-04T11:32:01.104161Z  INFO upstream: sync connection opened conn=1 transport="direct" server=https://testnet.zec.rocks:443
+👻 Ghost Layer up on 127.0.0.1:9067  →  https://testnet.zec.rocks:443
+   Point your wallet at 127.0.0.1:9067 (e.g. zcash-devtool -s 127.0.0.1:9067)
+   ✅ wallet headers stripped; one long-lived sync connection
+   ⚠️  not yet hidden in this mode: your IP (enable --nym)
+2026-11-04T11:32:05.912780Z  INFO upstream: ChainSpec conn=1 path="sync" method="GetLatestBlock"
+2026-11-04T11:35:18.269641Z  INFO upstream: ChainSpec conn=1 path="sync" method="GetLatestBlock"
+2026-11-04T11:35:18.618548Z  INFO upstream: [redacted] conn=1 path="sync" method="GetTreeState"
+2026-11-04T11:35:33.703929Z  INFO upstream: [redacted] conn=1 path="sync" method="GetSubtreeRoots"
+2026-11-04T11:35:33.997194Z  INFO upstream: [redacted] conn=1 path="sync" method="GetSubtreeRoots"
+2026-11-04T11:35:34.159195Z  INFO upstream: [redacted] conn=1 path="sync" method="GetSubtreeRoots"
+2026-11-04T11:35:34.338040Z  INFO upstream: ChainSpec conn=1 path="sync" method="GetLatestBlock"
+2026-11-04T11:35:34.575461Z  INFO upstream: [redacted] conn=1 path="sync" method="GetAddressUtxosStream"
+2026-11-04T11:35:34.723023Z  INFO upstream: [redacted] conn=1 path="sync" method="GetBlockRange"
+2026-11-04T11:35:35.284707Z  INFO upstream: [redacted] conn=1 path="sync" method="GetTreeState"

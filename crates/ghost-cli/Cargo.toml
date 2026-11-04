@@ -10,3 +10,12 @@ path = "src/main.rs"
 
 [dependencies]
 ghost-transport = { path = "../ghost-transport" }
+ghost-gateway = { path = "../ghost-gateway" }
+tonic.workspace = true
+tokio.workspace = true
+clap.workspace = true
+serde.workspace = true
+serde_json.workspace = true
+anyhow.workspace = true
+tracing.workspace = true
+tracing-subscriber.workspace = true

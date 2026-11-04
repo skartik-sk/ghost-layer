@@ -1,0 +1,8 @@
+✅ upstream reachable   https://testnet.zec.rocks:443
+✅ tls                  TLS (webpki roots)
+✅ chain = test         chain_name="test"
+✅ protos compatible    ECC LightWalletD v0.6.1 (protocol "v0.6.0")
+✅ consensus branch     77190ad9 (backend v7.0.0+git.e8db87e /Zebra:7.0.0/; next upgrade: none)
+✅ tip height           4581920
+✅ listen port          127.0.0.1:9067 in use by a working gateway (tip 4581920)
+✅ storage writable     /Users/singupallikartik/.ghost-layer 

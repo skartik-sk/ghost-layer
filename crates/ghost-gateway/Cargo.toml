@@ -5,3 +5,8 @@ edition.workspace = true
 license.workspace = true
 
 [dependencies]
+ghost-transport = { path = "../ghost-transport" }
+tonic.workspace = true
+futures.workspace = true
+tracing.workspace = true
+anyhow.workspace = true
