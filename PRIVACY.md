@@ -15,7 +15,7 @@
 
 | To whom | What |
 |---|---|
-| Light-wallet server | that a client syncs, and which grid cells it fetches (coarse, not zero; the tip cell is partial); tree-state / subtree-root heights (`GetTreeState`, `GetSubtreeRoots`: these can hint at the wallet birthday); the pool-type filter a wallet sends; transparent-address queries (`GetAddressUtxos`, `GetTaddress*`); the raw transaction at broadcast time; `GetTransaction` lookups. |
+| Light-wallet server | that a client syncs, and which grid cells it fetches (coarse, not zero; the tip cell is partial); a `GetTreeState` height only to within 4 grid cells (since v0.2 the real height is sent among 3 decoys, one per neighbouring cell, in random order); `GetSubtreeRoots` arguments; whether a wallet wants **transparent** data (since v0.2 the shielded pool filter is normalised: upstream always gets Sapling+Orchard+Ironwood and Ghost prunes locally, so an Orchard-only or Ironwood-only wallet looks like any other); transparent-address queries (`GetAddressUtxos`, `GetTaddress*`); the raw transaction at broadcast time; `GetTransaction` lookups. |
 | Server, **without Nym** | your IP on both paths (same IP → linkable; our attacker test reports this honestly as 5/5 linked). |
 | Nym | the exit knows *some* Nym user talks to the server; your ISP sees that you use Nym. |
 | Tor (broadcast fallback, only if a Tor SOCKS port is running and Nym can't reach the network) | the Tor exit sees *some* Tor user send one transaction to the server (a new circuit per transaction); your ISP sees that you use Tor. Sync stays on Nym, so sync and broadcast leave through two different anonymity networks. Never a direct connection; `--no-tor` disables it. |
@@ -34,7 +34,7 @@ The light-wallet server for data integrity (Ghost Layer checks cells are contigu
 
 ## 4. What would we fix next?
 
-Native Nym hybrid by default (smoldvpn for fast sync, smolmix for broadcast); cover traffic for sync; grid-aligning tree-state queries; normalising the pool-type filter; multi-server destination splitting by default; birthday-height leakage; wallet-side integration so the tx is *built* when the delay fires (fixes the expiry-height hint); mobile; payment proofs (ZIP 311).
+Native Nym hybrid by default (smoldvpn for fast sync, smolmix for broadcast); cover traffic for sync; covering `GetSubtreeRoots` arguments; multi-server destination splitting by default; birthday-height leakage; wallet-side integration so the tx is *built* when the delay fires (fixes the expiry-height hint); mobile; payment proofs (ZIP 311).
 
 ---
 

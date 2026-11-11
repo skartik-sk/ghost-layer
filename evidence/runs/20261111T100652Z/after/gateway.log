@@ -1,0 +1,101 @@
+2026-11-11T10:12:39.041050Z  INFO upstream: startup probe ok (connection closed) conn=1 transport="direct" server=http://127.0.0.1:9068 tip=780
+2026-11-11T10:12:40.055414Z  INFO upstream: new sync connection for a new wallet session conn=2 path="sync" transport="direct" wallet=127.0.0.1:57890
+2026-11-11T10:12:40.056616Z  INFO upstream: start_index=0 max=0 conn=2 path="sync" method="GetSubtreeRoots"
+2026-11-11T10:12:40.067756Z  INFO upstream: start_index=0 max=0 conn=2 path="sync" method="GetSubtreeRoots"
+2026-11-11T10:12:40.114264Z  INFO upstream: start_index=0 max=0 conn=2 path="sync" method="GetSubtreeRoots"
+2026-11-11T10:12:40.161942Z  INFO upstream:  conn=2 path="sync" method="GetLatestBlock"
+2026-11-11T10:12:40.171868Z  INFO upstream:  conn=2 path="sync" method="GetAddressUtxosStream"
+2026-11-11T10:12:44.067648Z  INFO broadcast: queued; will broadcast on a fresh connection after random delay txid=7c9d53c4215dfcaa8ca2878c93f391791373fe51ba4b70f27fef2724013a8868 delay_s=16.46
+2026-11-11T10:13:00.530492Z  INFO upstream: fresh connection opened for this tx only conn=3 path="broadcast" transport="direct" method="SendTransaction"
+2026-11-11T10:13:00.751838Z  INFO broadcast: broadcast done txid=7c9d53c4215dfcaa8ca2878c93f391791373fe51ba4b70f27fef2724013a8868 status="accepted" conn=3 transport=direct endpoint=http://127.0.0.1:9068 scheduled_ms=1794391980527 actual_ms=1794391980751 late_ms=224 code=0 msg=7c9d53c4215dfcaa8ca2878c93f391791373fe51ba4b70f27fef2724013a8868
+2026-11-11T10:13:01.844350Z  INFO upstream: new sync connection for a new wallet session conn=4 path="sync" transport="direct" wallet=127.0.0.1:57895
+2026-11-11T10:13:01.844395Z  INFO upstream: start_index=0 max=0 conn=4 path="sync" method="GetSubtreeRoots"
+2026-11-11T10:13:01.847204Z  INFO upstream: start_index=0 max=0 conn=4 path="sync" method="GetSubtreeRoots"
+2026-11-11T10:13:01.892088Z  INFO upstream: start_index=0 max=0 conn=4 path="sync" method="GetSubtreeRoots"
+2026-11-11T10:13:01.937018Z  INFO upstream:  conn=4 path="sync" method="GetLatestBlock"
+2026-11-11T10:13:01.946413Z  INFO upstream:  conn=4 path="sync" method="GetAddressUtxosStream"
+2026-11-11T10:13:05.254422Z  INFO upstream: new sync connection for a new wallet session conn=5 path="sync" transport="direct" wallet=127.0.0.1:57897
+2026-11-11T10:13:05.254464Z  INFO upstream: start_index=0 max=0 conn=5 path="sync" method="GetSubtreeRoots"
+2026-11-11T10:13:05.257880Z  INFO upstream: start_index=0 max=0 conn=5 path="sync" method="GetSubtreeRoots"
+2026-11-11T10:13:05.301733Z  INFO upstream: start_index=0 max=0 conn=5 path="sync" method="GetSubtreeRoots"
+2026-11-11T10:13:05.345085Z  INFO upstream:  conn=5 path="sync" method="GetLatestBlock"
+2026-11-11T10:13:05.353538Z  INFO upstream:  conn=5 path="sync" method="GetAddressUtxosStream"
+2026-11-11T10:13:05.399971Z  INFO grid: planned grid-aligned fetch wallet_range=781..=784 emitted=0..=784 cells=1 spacing=1152
+2026-11-11T10:13:05.400064Z  INFO upstream: range=0..=784 (grid cell) conn=5 path="sync" method="GetBlockRange" aligned=true
+2026-11-11T10:13:05.482970Z  INFO upstream: height=780 conn=5 path="sync" method="GetTreeState"
+2026-11-11T10:13:05.802165Z  INFO upstream: new sync connection for a new wallet session conn=6 path="sync" transport="direct" wallet=127.0.0.1:57899
+2026-11-11T10:13:05.802208Z  INFO upstream: start_index=0 max=0 conn=6 path="sync" method="GetSubtreeRoots"
+2026-11-11T10:13:05.804845Z  INFO upstream: start_index=0 max=0 conn=6 path="sync" method="GetSubtreeRoots"
+2026-11-11T10:13:05.848292Z  INFO upstream: start_index=0 max=0 conn=6 path="sync" method="GetSubtreeRoots"
+2026-11-11T10:13:05.892785Z  INFO upstream:  conn=6 path="sync" method="GetLatestBlock"
+2026-11-11T10:13:05.901282Z  INFO upstream:  conn=6 path="sync" method="GetAddressUtxosStream"
+2026-11-11T10:13:08.902547Z  INFO broadcast: queued; will broadcast on a fresh connection after random delay txid=3c9fada15c512cb0f34cf881f14d60d5dc2348429baa48b3bf4d02faeabf3fb5 delay_s=37.36
+2026-11-11T10:13:46.265556Z  INFO upstream: fresh connection opened for this tx only conn=7 path="broadcast" transport="direct" method="SendTransaction"
+2026-11-11T10:13:46.478655Z  INFO broadcast: broadcast done txid=3c9fada15c512cb0f34cf881f14d60d5dc2348429baa48b3bf4d02faeabf3fb5 status="accepted" conn=7 transport=direct endpoint=http://127.0.0.1:9068 scheduled_ms=1794392026262 actual_ms=1794392026478 late_ms=216 code=0 msg=3c9fada15c512cb0f34cf881f14d60d5dc2348429baa48b3bf4d02faeabf3fb5
+2026-11-11T10:13:47.556574Z  INFO upstream: new sync connection for a new wallet session conn=8 path="sync" transport="direct" wallet=127.0.0.1:57906
+2026-11-11T10:13:47.556617Z  INFO upstream: start_index=0 max=0 conn=8 path="sync" method="GetSubtreeRoots"
+2026-11-11T10:13:47.559718Z  INFO upstream: start_index=0 max=0 conn=8 path="sync" method="GetSubtreeRoots"
+2026-11-11T10:13:47.602842Z  INFO upstream: start_index=0 max=0 conn=8 path="sync" method="GetSubtreeRoots"
+2026-11-11T10:13:47.646004Z  INFO upstream:  conn=8 path="sync" method="GetLatestBlock"
+2026-11-11T10:13:47.656222Z  INFO upstream:  conn=8 path="sync" method="GetAddressUtxosStream"
+2026-11-11T10:13:47.703869Z  INFO grid: planned grid-aligned fetch wallet_range=785..=788 emitted=0..=788 cells=1 spacing=1152
+2026-11-11T10:13:47.703943Z  INFO upstream: range=0..=788 (grid cell) conn=8 path="sync" method="GetBlockRange" aligned=true
+2026-11-11T10:13:47.777987Z  INFO upstream: height=784 conn=8 path="sync" method="GetTreeState"
+2026-11-11T10:13:48.095189Z  INFO upstream: new sync connection for a new wallet session conn=9 path="sync" transport="direct" wallet=127.0.0.1:57909
+2026-11-11T10:13:48.095234Z  INFO upstream: start_index=0 max=0 conn=9 path="sync" method="GetSubtreeRoots"
+2026-11-11T10:13:48.097892Z  INFO upstream: start_index=0 max=0 conn=9 path="sync" method="GetSubtreeRoots"
+2026-11-11T10:13:48.142950Z  INFO upstream: start_index=0 max=0 conn=9 path="sync" method="GetSubtreeRoots"
+2026-11-11T10:13:48.187179Z  INFO upstream:  conn=9 path="sync" method="GetLatestBlock"
+2026-11-11T10:13:48.196276Z  INFO upstream:  conn=9 path="sync" method="GetAddressUtxosStream"
+2026-11-11T10:13:51.176948Z  INFO broadcast: queued; will broadcast on a fresh connection after random delay txid=45ffe5cb7bce9ba141118c3a0f45342ec7e0bd1117a3721b3dc73cca7295c3c1 delay_s=33.627
+2026-11-11T10:14:24.939568Z  INFO upstream: fresh connection opened for this tx only conn=10 path="broadcast" transport="direct" method="SendTransaction"
+2026-11-11T10:14:25.305366Z  INFO broadcast: broadcast done txid=45ffe5cb7bce9ba141118c3a0f45342ec7e0bd1117a3721b3dc73cca7295c3c1 status="accepted" conn=10 transport=direct endpoint=http://127.0.0.1:9068 scheduled_ms=1794392064803 actual_ms=1794392065305 late_ms=502 code=0 msg=45ffe5cb7bce9ba141118c3a0f45342ec7e0bd1117a3721b3dc73cca7295c3c1
+2026-11-11T10:14:27.167503Z  INFO upstream: new sync connection for a new wallet session conn=11 path="sync" transport="direct" wallet=127.0.0.1:57938
+2026-11-11T10:14:27.167566Z  INFO upstream: start_index=0 max=0 conn=11 path="sync" method="GetSubtreeRoots"
+2026-11-11T10:14:27.173211Z  INFO upstream: start_index=0 max=0 conn=11 path="sync" method="GetSubtreeRoots"
+2026-11-11T10:14:27.217082Z  INFO upstream: start_index=0 max=0 conn=11 path="sync" method="GetSubtreeRoots"
+2026-11-11T10:14:27.266583Z  INFO upstream:  conn=11 path="sync" method="GetLatestBlock"
+2026-11-11T10:14:27.304865Z  INFO upstream:  conn=11 path="sync" method="GetAddressUtxosStream"
+2026-11-11T10:14:27.355105Z  INFO grid: planned grid-aligned fetch wallet_range=789..=792 emitted=0..=792 cells=1 spacing=1152
+2026-11-11T10:14:27.356976Z  INFO upstream: range=0..=792 (grid cell) conn=11 path="sync" method="GetBlockRange" aligned=true
+2026-11-11T10:14:27.425121Z  INFO upstream: height=788 conn=11 path="sync" method="GetTreeState"
+2026-11-11T10:14:27.719407Z  INFO upstream: new sync connection for a new wallet session conn=12 path="sync" transport="direct" wallet=127.0.0.1:57941
+2026-11-11T10:14:27.719457Z  INFO upstream: start_index=0 max=0 conn=12 path="sync" method="GetSubtreeRoots"
+2026-11-11T10:14:27.722133Z  INFO upstream: start_index=0 max=0 conn=12 path="sync" method="GetSubtreeRoots"
+2026-11-11T10:14:27.765811Z  INFO upstream: start_index=0 max=0 conn=12 path="sync" method="GetSubtreeRoots"
+2026-11-11T10:14:27.809391Z  INFO upstream:  conn=12 path="sync" method="GetLatestBlock"
+2026-11-11T10:14:27.816043Z  INFO upstream:  conn=12 path="sync" method="GetAddressUtxosStream"
+2026-11-11T10:14:34.293605Z  INFO broadcast: queued; will broadcast on a fresh connection after random delay txid=79cee79d4b22abb2d17352b97c214fd71cd1984fe88013fe5add02922927810a delay_s=18.694
+2026-11-11T10:14:53.284174Z  INFO upstream: fresh connection opened for this tx only conn=13 path="broadcast" transport="direct" method="SendTransaction"
+2026-11-11T10:14:53.765926Z  INFO broadcast: broadcast done txid=79cee79d4b22abb2d17352b97c214fd71cd1984fe88013fe5add02922927810a status="accepted" conn=13 transport=direct endpoint=http://127.0.0.1:9068 scheduled_ms=1794392092975 actual_ms=1794392093765 late_ms=790 code=0 msg=79cee79d4b22abb2d17352b97c214fd71cd1984fe88013fe5add02922927810a
+2026-11-11T10:14:56.086818Z  INFO upstream: idle sync session closed conn=2 path="sync" wallet=127.0.0.1:57890
+2026-11-11T10:14:56.087465Z  INFO upstream: new sync connection for a new wallet session conn=14 path="sync" transport="direct" wallet=127.0.0.1:57956
+2026-11-11T10:14:56.087498Z  INFO upstream: start_index=0 max=0 conn=14 path="sync" method="GetSubtreeRoots"
+2026-11-11T10:14:56.095687Z  INFO upstream: start_index=0 max=0 conn=14 path="sync" method="GetSubtreeRoots"
+2026-11-11T10:14:56.139472Z  INFO upstream: start_index=0 max=0 conn=14 path="sync" method="GetSubtreeRoots"
+2026-11-11T10:14:56.186745Z  INFO upstream:  conn=14 path="sync" method="GetLatestBlock"
+2026-11-11T10:14:56.220951Z  INFO upstream:  conn=14 path="sync" method="GetAddressUtxosStream"
+2026-11-11T10:14:56.270081Z  INFO grid: planned grid-aligned fetch wallet_range=793..=796 emitted=0..=796 cells=1 spacing=1152
+2026-11-11T10:14:56.270683Z  INFO upstream: range=0..=796 (grid cell) conn=14 path="sync" method="GetBlockRange" aligned=true
+2026-11-11T10:14:56.368257Z  INFO upstream: height=792 conn=14 path="sync" method="GetTreeState"
+2026-11-11T10:14:56.818070Z  INFO upstream: new sync connection for a new wallet session conn=15 path="sync" transport="direct" wallet=127.0.0.1:57958
+2026-11-11T10:14:56.818119Z  INFO upstream: start_index=0 max=0 conn=15 path="sync" method="GetSubtreeRoots"
+2026-11-11T10:14:56.824413Z  INFO upstream: start_index=0 max=0 conn=15 path="sync" method="GetSubtreeRoots"
+2026-11-11T10:14:56.872457Z  INFO upstream: start_index=0 max=0 conn=15 path="sync" method="GetSubtreeRoots"
+2026-11-11T10:14:56.920537Z  INFO upstream:  conn=15 path="sync" method="GetLatestBlock"
+2026-11-11T10:14:56.928299Z  INFO upstream:  conn=15 path="sync" method="GetAddressUtxosStream"
+2026-11-11T10:15:02.253919Z  INFO broadcast: queued; will broadcast on a fresh connection after random delay txid=ce0ce2c1dfe365453c78db5286a22e9fdb3c6f7a2fe5ffa1d376da23be7def70 delay_s=11.344
+2026-11-11T10:15:13.669642Z  INFO upstream: fresh connection opened for this tx only conn=16 path="broadcast" transport="direct" method="SendTransaction"
+2026-11-11T10:15:13.951489Z  INFO broadcast: broadcast done txid=ce0ce2c1dfe365453c78db5286a22e9fdb3c6f7a2fe5ffa1d376da23be7def70 status="accepted" conn=16 transport=direct endpoint=http://127.0.0.1:9068 scheduled_ms=1794392113596 actual_ms=1794392113951 late_ms=355 code=0 msg=ce0ce2c1dfe365453c78db5286a22e9fdb3c6f7a2fe5ffa1d376da23be7def70
+2026-11-11T10:15:15.497869Z  INFO upstream: idle sync session closed conn=5 path="sync" wallet=127.0.0.1:57897
+2026-11-11T10:15:15.497952Z  INFO upstream: idle sync session closed conn=6 path="sync" wallet=127.0.0.1:57899
+2026-11-11T10:15:15.497967Z  INFO upstream: idle sync session closed conn=4 path="sync" wallet=127.0.0.1:57895
+2026-11-11T10:15:15.499000Z  INFO upstream: new sync connection for a new wallet session conn=17 path="sync" transport="direct" wallet=127.0.0.1:57971
+2026-11-11T10:15:15.499034Z  INFO upstream: start_index=0 max=0 conn=17 path="sync" method="GetSubtreeRoots"
+2026-11-11T10:15:15.505404Z  INFO upstream: start_index=0 max=0 conn=17 path="sync" method="GetSubtreeRoots"
+2026-11-11T10:15:15.550199Z  INFO upstream: start_index=0 max=0 conn=17 path="sync" method="GetSubtreeRoots"
+2026-11-11T10:15:15.596816Z  INFO upstream:  conn=17 path="sync" method="GetLatestBlock"
+2026-11-11T10:15:15.634433Z  INFO upstream:  conn=17 path="sync" method="GetAddressUtxosStream"
+2026-11-11T10:15:15.680484Z  INFO grid: planned grid-aligned fetch wallet_range=797..=800 emitted=0..=800 cells=1 spacing=1152
+2026-11-11T10:15:15.680582Z  INFO upstream: range=0..=800 (grid cell) conn=17 path="sync" method="GetBlockRange" aligned=true
+2026-11-11T10:15:15.766363Z  INFO upstream: height=796 conn=17 path="sync" method="GetTreeState"

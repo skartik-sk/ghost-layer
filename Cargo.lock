@@ -2547,6 +2547,7 @@ dependencies = [
  "ghost-layer-transport",
  "hex",
  "prost 0.14.4",
+ "rand 0.10.3",
  "serde_json",
  "sha2 0.10.9",
  "tokio",

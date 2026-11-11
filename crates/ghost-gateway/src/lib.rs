@@ -185,8 +185,9 @@ impl GridFetcher {
             return Err(Status::out_of_range(format!("requested height {hi} is above the chain tip {tip}")));
         }
         let plan = grid::plan(lo, hi, tip);
-        let mut pools = msg.pool_types.clone();
-        pools.sort();
+        // The pool filter would tag the wallet (Orchard-only, Ironwood-only, …): ask upstream for a canonical set
+        // and prune locally to what this wallet asked for.
+        let (want, pools) = canonical_pools(&msg.pool_types);
         let kind = format!("{}:{pools:?}", if nullifiers { "nf" } else { "cb" });
         info!(target: "grid", wallet_range = %format!("{a}..={b}"), emitted = %format!("{}..={}", plan.emitted.0, plan.emitted.1),
             cells = plan.cells.len(), spacing = plan.spacing, "planned grid-aligned fetch");
@@ -219,6 +220,12 @@ impl GridFetcher {
                     Ok(blocks) => {
                         for (h, data) in blocks.into_iter().filter(|(h, _)| (lo..=hi).contains(h)) {
                             let blk = CompactBlock::decode(data.as_slice())
+                                .map(|mut b| {
+                                    if want != pools {
+                                        prune_pools(&mut b, &want);
+                                    }
+                                    b
+                                })
                                 .map_err(|e| Status::internal(format!("ghost cache decode at {h}: {e}")));
                             if descending {
                                 held.push(blk);
@@ -287,6 +294,73 @@ impl Gateway {
         info!(target: "upstream", conn, path = "sync", method, "{detail}");
         self.events.record(method, "request", conn, self.sync_transport.label, json!({}));
     }
+}
+
+/// The real height `h` plus one random height in each of 3 other grid cells, so the 4 requests cover 4
+/// consecutive cells with the real cell in a uniformly random position; returned shuffled. Heights stay in
+/// `[1, tip]` (near the tip the window shifts down).
+fn tree_state_cover(h: u64, tip: u64, rng: &mut impl rand::RngExt) -> Vec<u64> {
+    let cell = grid::S_FLOOR;
+    let real_cell = h / cell;
+    let last_cell = tip / cell;
+    let mut first = real_cell.saturating_sub(rng.random_range(0..4u64));
+    first = first.min(last_cell.saturating_sub(3));
+    let mut out = vec![h];
+    for c in first..first + 4 {
+        if c == real_cell {
+            continue;
+        }
+        let lo = (c * cell).max(1);
+        let hi = ((c + 1) * cell - 1).min(tip);
+        out.push(rng.random_range(lo..=hi));
+    }
+    for i in (1..out.len()).rev() {
+        out.swap(i, rng.random_range(0..=i));
+    }
+    out
+}
+
+const SHIELDED: [i32; 3] = [PoolType::Sapling as i32, PoolType::Orchard as i32, PoolType::Ironwood as i32];
+
+/// (pools the wallet wants, pools to request upstream), both sorted. An empty request means the legacy
+/// default: the shielded pools. Upstream always gets all shielded pools, plus transparent only if the wallet
+/// asked for it, so the server learns at most "this wallet wants transparent data".
+fn canonical_pools(requested: &[i32]) -> (Vec<i32>, Vec<i32>) {
+    let mut want: Vec<i32> = if requested.is_empty() { SHIELDED.to_vec() } else { requested.to_vec() };
+    want.sort();
+    want.dedup();
+    let mut upstream = SHIELDED.to_vec();
+    if want.contains(&(PoolType::Transparent as i32)) {
+        upstream.push(PoolType::Transparent as i32);
+    }
+    upstream.sort();
+    (want, upstream)
+}
+
+/// Strip what the wallet did not ask for, as a server honouring its pool filter would: per-pool fields are
+/// cleared and transactions left with nothing are dropped. Block-level chain metadata (tree sizes) is kept.
+fn prune_pools(b: &mut CompactBlock, want: &[i32]) {
+    let has = |p: PoolType| want.contains(&(p as i32));
+    for tx in &mut b.vtx {
+        if !has(PoolType::Transparent) {
+            tx.vin.clear();
+            tx.vout.clear();
+        }
+        if !has(PoolType::Sapling) {
+            tx.spends.clear();
+            tx.outputs.clear();
+        }
+        if !has(PoolType::Orchard) {
+            tx.actions.clear();
+        }
+        if !has(PoolType::Ironwood) {
+            tx.ironwood_actions.clear();
+        }
+    }
+    b.vtx.retain(|tx| {
+        !(tx.vin.is_empty() && tx.vout.is_empty() && tx.spends.is_empty() && tx.outputs.is_empty()
+            && tx.actions.is_empty() && tx.ironwood_actions.is_empty())
+    });
 }
 
 /// Connection-level failures (worth a retry on a re-dialed channel), as opposed to answers or validation errors.
@@ -440,7 +514,24 @@ impl CompactTxStreamer for Gateway {
     }
 
     async fn get_tree_state(&self, r: Request<BlockId>) -> Result<Response<TreeState>, Status> {
-        unary!(self, r, get_tree_state, "GetTreeState")
+        // The exact height (often the wallet's birthday) is a fingerprint. Ask for it among decoys: one height in
+        // each of 4 consecutive grid cells, real one in a random position, sent in random order.
+        let tip = self.grid.tip.load(Ordering::Relaxed);
+        let h = r.get_ref().height;
+        if h == 0 || !r.get_ref().hash.is_empty() || tip < 4 * grid::S_FLOOR {
+            return unary!(self, r, get_tree_state, "GetTreeState");
+        }
+        let (mut c, conn) = self.session(r.remote_addr()).await?;
+        let heights = tree_state_cover(h, tip, &mut rand::rng());
+        let mut real = None;
+        for q in heights {
+            self.log(conn, "GetTreeState", format!("height={q} (one of 4, grid-covered)"));
+            let resp = c.get_tree_state(Request::new(BlockId { height: q, hash: vec![] })).await;
+            if q == h {
+                real = Some(resp?.into_inner());
+            }
+        }
+        Ok(Response::new(real.expect("the real height is always in the cover set")))
     }
     async fn get_latest_tree_state(&self, r: Request<Empty>) -> Result<Response<TreeState>, Status> {
         unary!(self, r, get_latest_tree_state, "GetLatestTreeState")
@@ -520,6 +611,63 @@ no_detail!(ChainSpec, TxFilter, RawTransaction, TransparentAddressBlockFilter, A
 mod tests {
     use super::is_transport_error;
     use tonic::Status;
+
+    #[test]
+    fn tree_state_cover_hides_the_height_in_4_cells() {
+        use super::tree_state_cover;
+        let cell = ghost_core::grid::S_FLOOR;
+        let tip = 4_607_700;
+        let mut pos_counts = [0u32; 4];
+        for _ in 0..2000 {
+            let h = 4_581_800; // a birthday
+            let v = tree_state_cover(h, tip, &mut rand::rng());
+            assert_eq!(v.len(), 4);
+            assert!(v.contains(&h));
+            let mut cells: Vec<u64> = v.iter().map(|x| x / cell).collect();
+            cells.sort();
+            assert!(cells.windows(2).all(|w| w[1] == w[0] + 1), "4 consecutive cells: {cells:?}");
+            assert!(v.iter().all(|&x| x >= 1 && x <= tip));
+            pos_counts[(h / cell - cells[0]) as usize] += 1;
+        }
+        // The real cell lands in every window position (roughly 1/4 each).
+        assert!(pos_counts.iter().all(|&n| n > 350), "{pos_counts:?}");
+        // Near the tip the window shifts down but stays valid.
+        let v = tree_state_cover(tip - 5, tip, &mut rand::rng());
+        assert!(v.contains(&(tip - 5)) && v.iter().all(|&x| x <= tip));
+    }
+
+    #[test]
+    fn pool_filter_is_canonical_upstream() {
+        use super::canonical_pools;
+        let (s, o, i, t) = (2, 3, 4, 1);
+        // Orchard-only and Ironwood-only wallets look the same upstream as a legacy (empty) request.
+        assert_eq!(canonical_pools(&[o]).1, vec![s, o, i]);
+        assert_eq!(canonical_pools(&[i]).1, vec![s, o, i]);
+        assert_eq!(canonical_pools(&[]), (vec![s, o, i], vec![s, o, i]));
+        assert_eq!(canonical_pools(&[i, t]), (vec![t, i], vec![t, s, o, i]));
+    }
+
+    #[test]
+    fn pruning_keeps_only_requested_pools() {
+        use super::prune_pools;
+        use ghost_transport::proto::{CompactBlock, CompactOrchardAction, CompactSaplingOutput, CompactTx, TxOut};
+        let tx = |idx: u64, sap: bool, orch: bool, iw: bool, t: bool| CompactTx {
+            index: idx,
+            outputs: if sap { vec![CompactSaplingOutput::default()] } else { vec![] },
+            actions: if orch { vec![CompactOrchardAction::default()] } else { vec![] },
+            ironwood_actions: if iw { vec![CompactOrchardAction::default()] } else { vec![] },
+            vout: if t { vec![TxOut::default()] } else { vec![] },
+            ..Default::default()
+        };
+        let mut b = CompactBlock {
+            vtx: vec![tx(0, true, false, false, false), tx(1, false, true, true, false), tx(2, false, false, false, true)],
+            ..Default::default()
+        };
+        prune_pools(&mut b, &[4]); // Ironwood only
+        assert_eq!(b.vtx.len(), 1);
+        assert_eq!(b.vtx[0].index, 1);
+        assert!(b.vtx[0].actions.is_empty() && b.vtx[0].ironwood_actions.len() == 1);
+    }
 
     #[test]
     fn only_connection_failures_are_retried() {

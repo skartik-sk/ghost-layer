@@ -216,7 +216,7 @@ No code was copied from these projects; zecmix's README informed the Nym setup (
 
 ## Limitations
 
-See [PRIVACY.md](PRIVACY.md). In short: tree-state/subtree heights, the pool-type filter and transparent-address queries still reach the server; the tip grid cell is partial; with `--direct` (opting out of the default Nym) the server sees your IP on both paths; Nym exits can degrade (re-init picks fresh ones; Ghost fails closed meanwhile); a ZecProof's message is an unsigned label; ShadeCheck SC-002 (as implemented) flags every broadcast, so we don't claim to pass it; a PASS is never proof of anonymity.
+See [PRIVACY.md](PRIVACY.md). In short: subtree-root arguments, whether a wallet wants transparent data, and transparent-address queries still reach the server (tree-state heights only to within 4 grid cells, among decoys; the shielded pool filter is normalised); the tip grid cell is partial; with `--direct` (opting out of the default Nym) the server sees your IP on both paths; Nym exits can degrade (Ghost tests and replaces them, can fall back to Tor for broadcasts, and fails closed meanwhile); a ZecProof's message is an unsigned label; ShadeCheck SC-002 (as implemented) flags every broadcast, so we don't claim to pass it; a PASS is never proof of anonymity.
 
 ## Scripts
 

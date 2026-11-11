@@ -56,3 +56,25 @@ $ ghost init --direct --listen 127.0.0.1:19067     # (Nym clients were not runni
 ```
 
 4.6 s. Wallet dir 0700, `identity.age` 0600 (zcash-devtool creates it 0644), `ufvk.txt` 0600.
+
+## Tree-state decoys and the pool filter (privacy)
+
+Testnet sync of the `ghost init` wallet through `ghost up` (Nym). The wallet asked for one tree state (its
+birthday, `4607256`); the upstream log shows four, one per consecutive grid cell, in random order:
+
+```
+upstream: height=4604894 (one of 4, grid-covered) conn=4 path="sync" method="GetTreeState"
+upstream: height=4606240 (one of 4, grid-covered) conn=4 path="sync" method="GetTreeState"
+upstream: height=4603572 (one of 4, grid-covered) conn=4 path="sync" method="GetTreeState"
+upstream: height=4607256 (one of 4, grid-covered) conn=4 path="sync" method="GetTreeState"
+```
+
+Cells 3996, 3997, 3998, 3999 (height / 1152). A unit test checks over 2000 draws that the real cell lands in
+every position of the window. Regtest chains shorter than 4 cells skip the cover (too few cells to hide in).
+
+The shielded pool filter is normalised: upstream always gets Sapling+Orchard+Ironwood (+transparent only if
+the wallet asks for it) and Ghost prunes each block locally to the wallet's set (unit-tested).
+
+`scripts/e2e_local.sh` with these changes: 5 + 5 real regtest payments, linkage **5/5 → 0/5**, 0 unaligned
+`GetBlockRange` (`evidence/runs/20261111T100652Z`). An earlier run the same day (Tor fallback build) measured
+**4/5 → 0/5** (`evidence/runs/20261111T100223Z`): one "before" payment did not trip the heuristics.
