@@ -50,7 +50,7 @@ pub(crate) enum ProofCmd {
         #[command(flatten)]
         nym: NymArgs,
     },
-    /// Verify a zecproof1… string against the chain
+    /// Verify a zecproof1… string, or a ZIP 311 payment disclosure (zpd1…), against the chain
     Verify {
         proof: String,
         #[arg(long, default_value = DEFAULT_SERVER)]
@@ -125,6 +125,81 @@ fn ock_for<V: orchard::note_encryption::DomainVersion>(
     <NoteEncryptionDomain<V> as Domain>::derive_ock(ovk, action.cv_net(), &cmstar, &epk)
 }
 
+fn invalid(reason: String, json_out: bool) -> Result<u8, Fail> {
+    // Never print attacker-controlled text raw (terminal escapes could fake a "VALID").
+    let reason: String = reason.chars().filter(|c| !c.is_control()).take(200).collect();
+    if json_out {
+        println!("{}", json!({"schema_version": 1, "ok": false, "valid": false, "reason": reason}));
+    } else {
+        println!("❌ INVALID: {reason}");
+    }
+    Ok(1)
+}
+
+fn clean(s: &str) -> String {
+    s.chars().filter(|c| !c.is_control()).collect()
+}
+
+/// Verify a ZIP 311 payment disclosure (`zpd1…`, made by the sender's wallet, e.g.
+/// `zcash-devtool wallet disclose`) against the chain. Needs no keys.
+async fn verify_zip311(text: &str, server: &str, nym: &NymArgs, json_out: bool) -> Result<u8, Fail> {
+    let pd = match zip311::PaymentDisclosure::decode(text) {
+        Ok(pd) => pd,
+        Err(e) => return invalid(e.to_string(), json_out),
+    };
+    let txid = pd.txid_hex();
+    let (tx, height) = match fetch(&txid, server, nym).await {
+        Ok(v) => v,
+        Err(f) if f.code == 2 => return invalid(f.msg, json_out),
+        Err(f) => return Err(f),
+    };
+    let net = Network::TestNetwork;
+    // Building the verifying key and checking the Halo2 proof take a few seconds.
+    let res = tokio::task::spawn_blocking(move || {
+        let data = zip311::TxData::from_tx(&tx, &net, BlockHeight::from_u32(height as u32));
+        zip311::verify(&pd, &data, zip311::coin_type(&net))
+    })
+    .await
+    .map_err(|e| Fail::runtime(format!("verifier crashed: {e}"), "retry"))?;
+    let v = match res {
+        Ok(v) => v,
+        Err(e) => return invalid(e.to_string(), json_out),
+    };
+    let msg = clean(&String::from_utf8_lossy(&v.msg));
+    let outputs: Vec<_> = v.outputs.iter().map(|o| {
+        let recipient = match &o.recipient {
+            zip311::Recipient::Orchard(a) => UnifiedAddress::from_receivers(Some(*a), None, None, None, None)
+                .map(|ua| ua.encode(&net)).unwrap_or_else(|| "(unencodable)".into()),
+            zip311::Recipient::Sapling(a) => zcash_keys::address::Address::Sapling(Box::new(*a)).encode(&net),
+        };
+        json!({"pool": o.pool.name(), "index": o.index, "recipient": recipient, "value_zat": o.value_zat, "memo": memo_text(&o.memo)})
+    }).collect();
+    let spends: Vec<_> = v.spends.iter().map(|(p, i)| json!({"pool": p.name(), "index": i})).collect();
+    let links = explorer_links(&txid);
+    if json_out {
+        println!("{}", json!({"schema_version": 1, "ok": true, "valid": true, "kind": "zip311", "txid": txid, "height": height,
+            "msg": msg, "msg_signed": true, "spends": spends, "outputs": outputs, "explorer": links}));
+    } else {
+        println!("✅ VALID ZIP 311 payment disclosure for tx {txid} (mined at height {height})");
+        for (p, i) in &v.spends {
+            println!("   sender    controls the spend authority of {p} action #{i} (zero-knowledge proof + signature)");
+        }
+        for o in &outputs {
+            println!("   paid      {:.8} TAZ ({} zat) to {}", o["value_zat"].as_u64().unwrap_or(0) as f64 / 1e8,
+                o["value_zat"], o["recipient"].as_str().unwrap_or(""));
+            println!("   memo      {}", o["memo"].as_str().unwrap_or(""));
+        }
+        if !msg.is_empty() {
+            println!("   message   {msg}  (signed by the sender)");
+        }
+        println!("   only these outputs were revealed; no viewing key, no sender address");
+        for l in &links {
+            println!("   🔗 {l}");
+        }
+    }
+    Ok(0)
+}
+
 pub(crate) async fn run(cmd: ProofCmd, json_out: bool) -> Result<u8, Fail> {
     match cmd {
         ProofCmd::Create { txid, action, msg, ufvk, ufvk_file, server, nym } => {
@@ -183,16 +258,9 @@ pub(crate) async fn run(cmd: ProofCmd, json_out: bool) -> Result<u8, Fail> {
             Ok(0)
         }
         ProofCmd::Verify { proof, server, nym } => {
-            let invalid = |reason: String, json_out: bool| -> Result<u8, Fail> {
-                // Never print attacker-controlled text raw (terminal escapes could fake a "VALID").
-                let reason: String = reason.chars().filter(|c| !c.is_control()).take(200).collect();
-                if json_out {
-                    println!("{}", json!({"schema_version": 1, "ok": false, "valid": false, "reason": reason}));
-                } else {
-                    println!("❌ INVALID: {reason}");
-                }
-                Ok(1)
-            };
+            if proof.trim().starts_with(zip311::TEXT_PREFIX) {
+                return verify_zip311(proof.trim(), &server, &nym, json_out).await;
+            }
             let Some(body) = proof.trim().strip_prefix(PREFIX) else { return invalid("not a zecproof1… string".into(), json_out) };
             let Ok(bytes) = URL_SAFE_NO_PAD.decode(body) else { return invalid("bad base64url encoding".into(), json_out) };
             let Ok(p) = serde_json::from_slice::<Payload>(&bytes) else { return invalid("bad proof payload".into(), json_out) };

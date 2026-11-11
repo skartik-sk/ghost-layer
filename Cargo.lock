@@ -2508,6 +2508,7 @@ dependencies = [
  "zcash_note_encryption",
  "zcash_primitives",
  "zcash_protocol",
+ "zip311",
 ]
 
 [[package]]
@@ -4104,6 +4105,7 @@ source = "registry+https://github.com/rust-lang/crates.io-index"
 checksum = "8ea1f30cedd69f0a2954655f7188c6a834246d2bcf1e315e2ac40c4b24dc9519"
 dependencies = [
  "cfg-if",
+ "rayon",
 ]
 
 [[package]]
@@ -10517,6 +10519,21 @@ dependencies = [
  "proc-macro2",
  "quote",
  "syn 3.0.9",
+]
+
+[[package]]
+name = "zip311"
+version = "0.1.0"
+dependencies = [
+ "base64 0.23.1",
+ "blake2b_simd",
+ "incrementalmerkletree",
+ "orchard",
+ "rand 0.10.3",
+ "sapling-crypto",
+ "zcash_note_encryption",
+ "zcash_primitives",
+ "zcash_protocol",
 ]
 
 [[package]]

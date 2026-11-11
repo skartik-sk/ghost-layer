@@ -44,12 +44,68 @@
       "type": "string"
     },
     "msg_signed": {
-      "const": false
+      "type": "boolean",
+      "description": "false for zecproof1 (label only); true for a zip311 disclosure (covered by the sender's signature)"
     },
     "explorer": {
       "type": "array",
       "items": {
         "type": "string"
+      }
+    },
+    "kind": {
+      "enum": [
+        "zecproof",
+        "zip311"
+      ],
+      "description": "absent means zecproof"
+    },
+    "spends": {
+      "type": "array",
+      "items": {
+        "type": "object",
+        "required": [
+          "pool",
+          "index"
+        ],
+        "properties": {
+          "pool": {
+            "type": "string"
+          },
+          "index": {
+            "type": "integer"
+          }
+        }
+      }
+    },
+    "outputs": {
+      "type": "array",
+      "items": {
+        "type": "object",
+        "required": [
+          "pool",
+          "index",
+          "recipient",
+          "value_zat",
+          "memo"
+        ],
+        "properties": {
+          "pool": {
+            "type": "string"
+          },
+          "index": {
+            "type": "integer"
+          },
+          "recipient": {
+            "type": "string"
+          },
+          "value_zat": {
+            "type": "integer"
+          },
+          "memo": {
+            "type": "string"
+          }
+        }
       }
     }
   },
@@ -65,11 +121,29 @@
     "required": [
       "txid",
       "height",
-      "recipient",
-      "value_zat",
-      "memo",
       "msg_signed",
       "explorer"
+    ],
+    "anyOf": [
+      {
+        "required": [
+          "recipient",
+          "value_zat",
+          "memo"
+        ]
+      },
+      {
+        "required": [
+          "kind",
+          "spends",
+          "outputs"
+        ],
+        "properties": {
+          "kind": {
+            "const": "zip311"
+          }
+        }
+      }
     ]
   },
   "else": {

@@ -38,6 +38,7 @@ zcash_protocol.workspace = true
 orchard.workspace = true
 zcash_note_encryption.workspace = true
 base64.workspace = true
+zip311 = { path = "../zip311", version = "0.1.0" }
 rand.workspace = true
 # Nym built in (default). crates.io nym-sdk 1.21.6 only builds with every nym-* crate at 1.21.6: see
 # scripts/pin_nym.sh; install with `cargo install --locked ghost-layer` to use our lockfile.

@@ -34,5 +34,9 @@ jobs:
         run: cargo test --workspace --locked
       - name: Test without built-in Nym
         run: cargo test -p ghost-layer --locked --no-default-features
+      - name: ZIP 311 with real Halo2 proofs (release; slow in debug)
+        run: |
+          cargo test -p zip311 --release --locked
+          cargo build -p zip311 --locked --no-default-features
       - name: Clippy
         run: cargo clippy --workspace --locked --all-targets -- -D warnings
