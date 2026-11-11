@@ -29,9 +29,9 @@ jobs:
       - uses: dtolnay/rust-toolchain@b725eda525362e7cf34af9a7243cac1e3f01a7ec # stable
         with:
           targets: ${{ matrix.target }}
-      - name: Install protoc (OS package manager; no third-party action)
+      - name: Install protoc (apt/brew; pinned release if apt is down)
         shell: bash
-        run: if [ "$RUNNER_OS" = macOS ]; then brew install protobuf; else sudo apt-get update && sudo apt-get install -y protobuf-compiler; fi
+        run: scripts/ci_install_protoc.sh
       - name: Build ghost
         run: cargo build --release --locked -p ghost-layer --target ${{ matrix.target }}
       - name: Build zcash-devtool (pinned, with patches/zcash-devtool applied)

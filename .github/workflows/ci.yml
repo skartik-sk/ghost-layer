@@ -22,9 +22,9 @@ jobs:
       - uses: dtolnay/rust-toolchain@b725eda525362e7cf34af9a7243cac1e3f01a7ec # stable
         with:
           components: clippy
-      - name: Install protoc (OS package manager; no third-party action)
+      - name: Install protoc (apt/brew; pinned release if apt is down)
         shell: bash
-        run: if [ "$RUNNER_OS" = macOS ]; then brew install protobuf; else sudo apt-get update && sudo apt-get install -y protobuf-compiler; fi
+        run: scripts/ci_install_protoc.sh
       - uses: Swatinem/rust-cache@d1527c8f67ef9af357290475d4af4b0fab8f12e0 # v2
       - name: Lockfile is up to date (nym-* crates must stay pinned at 1.21.6)
         run: |
