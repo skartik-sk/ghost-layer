@@ -1,5 +1,12 @@
 # Changelog
 
+## v0.2.1 (2026-11-11)
+
+- First run on a fresh install: if a Nym exit dies right as the gateway starts, `ghost up` now keeps trying its
+  first upstream request for up to ~4 minutes (the watchdog replaces the exit meanwhile) instead of exiting.
+- `ghost pay` / `ghost init` stop waiting as soon as the gateway process exits, and show its error.
+- Tested from the release binaries with `install.sh` and a clean home: `ghost init` over the built-in Nym in 1 min 47 s.
+
 ## v0.2.0 (2026-11-11)
 
 After the Free Society Hack (2nd place, Privacy track) we worked on the gaps the judges scored lowest:

@@ -386,6 +386,21 @@ async fn up(a: UpArgs, json: bool) -> Result<u8, Fail> {
     let cache_name = format!("blocks-{}-{}.sqlite", upstream.host.replace(|c: char| !c.is_ascii_alphanumeric(), "_"), upstream.port);
     let cache = BlockCache::open(&data_dir().join(cache_name))
         .map_err(|e| Fail::runtime(format!("cannot open block cache: {e:#}"), "check that ~/.ghost-layer is writable"))?;
+    // A mixnet exit can be replaced right as we start (the watchdog needs ~2 min): keep trying the first
+    // upstream request for up to ~4 min instead of exiting on the first failure.
+    if a.nym.on() {
+        for attempt in 1..=8 {
+            let ok = async { sync.fresh().await?.client.get_latest_block(ChainSpec {}).await.map_err(anyhow::Error::from) }.await;
+            match ok {
+                Ok(_) => break,
+                Err(e) if attempt < 8 => {
+                    eprintln!("👻 upstream not reachable through Nym yet ({e:#}); retrying in 30 s ({attempt}/7)");
+                    tokio::time::sleep(std::time::Duration::from_secs(30)).await;
+                }
+                Err(_) => break, // Gateway::connect below reports the error
+            }
+        }
+    }
     let gw = ghost_gateway::Gateway::connect(&sync, scheduler.clone(), send_mode, cache, events).await.map_err(|e| {
         Fail::runtime(format!("cannot reach upstream {}: {e:#}", upstream.uri()), "run `ghost doctor` to diagnose")
     })?;

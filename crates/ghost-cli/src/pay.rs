@@ -127,15 +127,24 @@ pub(crate) async fn ensure_gateway(listen: SocketAddr, upstream: &str, profile: 
     }
     let errf = std::fs::File::create(&log).map_err(|e| Fail::runtime(format!("{}: {e}", log.display()), "check ~/.ghost-layer"))?;
     let child = cmd.stdout(Stdio::null()).stderr(errf).spawn().map_err(|e| Fail::runtime(e.to_string(), "run `ghost up` yourself"))?;
-    let started = Started(Some(child));
+    let mut started = Started(Some(child));
     say(&format!("👻 starting Ghost Layer{} on {listen} …", if nym.on() { " (Nym)" } else { "" }));
-    for _ in 0..240 {
+    for _ in 0..330 {
         if gateway_alive(listen).await.is_some() {
             return Ok((started, "started"));
         }
+        // Stop waiting as soon as the gateway process has given up, and say why.
+        if let Some(c) = started.0.as_mut() {
+            if let Ok(Some(_)) = c.try_wait() {
+                let why = std::fs::read_to_string(&log).unwrap_or_default();
+                let why = why.lines().rev().find(|l| l.contains('❌')).unwrap_or("see the log").trim().to_string();
+                return Err(Fail::runtime(format!("gateway stopped: {why} (log: {})", log.display()),
+                    "Nym exits are flaky right now; retry in a few minutes, or keep `ghost nym` running in another terminal"));
+            }
+        }
         tokio::time::sleep(Duration::from_secs(1)).await;
     }
-    Err(Fail::runtime(format!("gateway did not start in 240 s (log: {})", log.display()), "run `ghost doctor` / check your Nym clients"))
+    Err(Fail::runtime(format!("gateway did not start in 330 s (log: {})", log.display()), "run `ghost doctor` / check your Nym clients"))
 }
 
 pub(crate) fn strip_ansi(s: &str) -> String {

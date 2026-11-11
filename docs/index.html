@@ -128,7 +128,7 @@ footer{border-top:1px solid var(--line);padding:64px 0 40px;color:var(--muted);f
 </head>
 <body>
 <nav><div class="wrap">
-<a class="logo" href="#">GHOST LAYER<sup>v0.1</sup></a>
+<a class="logo" href="#">GHOST LAYER<sup>v0.2</sup></a>
 <div class="menu"><a href="#capabilities">Capabilities</a><a href="#process">Process</a><a href="#measured">Evidence</a><a href="#stack">Stack</a><a href="#security">Security</a><a href="#developers">Developers</a></div>
 <div class="navr"><a class="t" href="https://crates.io/crates/ghost-layer">crates.io</a><a class="pill" href="https://github.com/skartik-sk/ghost-layer">Get Ghost Layer</a></div>
 </div></nav>
@@ -139,7 +139,7 @@ footer{border-top:1px solid var(--line);padding:64px 0 40px;color:var(--muted);f
 <p class="eyebrow">Network privacy for Zcash light wallets</p>
 <h1>Zcash hides the money. <span class="grad">We hide the person.</span></h1>
 <p class="sub">Your light-wallet server sees your IP, and when your wallet syncs then sends seconds later, it knows the payment is yours. Ghost Layer is a local gateway that breaks that link, with no changes to your wallet.</p>
-<div class="ctas"><a class="pill" href="https://github.com/skartik-sk/ghost-layer">View on GitHub</a><a class="pill dark" href="#measured">See the evidence</a><span class="cmd"><b>$</b> cargo install ghost-layer</span></div>
+<div class="ctas"><a class="pill" href="https://github.com/skartik-sk/ghost-layer">View on GitHub</a><a class="pill dark" href="#measured">See the evidence</a><span class="cmd"><b>$</b> cargo install --locked ghost-layer</span></div>
 <div class="stats">
 <div><b class="r">100%</b><span>payments linked without it</span></div>
 <div><b class="t">0%</b><span>with Ghost Layer</span></div>
@@ -190,7 +190,7 @@ footer{border-top:1px solid var(--line);padding:64px 0 40px;color:var(--muted);f
 <div><span>Sync and broadcast Nym exits</span><span>different</span></div>
 <div><span>Nym down → Ghost refuses to send</span><span>fail closed</span></div>
 <div><span>scripts/e2e_local.sh on final main</span><span>passing</span></div>
-<div><span>ghost-layer on crates.io</span><span>v0.1.0</span></div>
+<div><span>ghost-layer on crates.io</span><span>v0.2.0</span></div>
 </div>
 </div>
 <table>
@@ -258,12 +258,14 @@ footer{border-top:1px solid var(--line);padding:64px 0 40px;color:var(--muted);f
 <a href="https://github.com/skartik-sk/ghost-layer/blob/main/llms.txt"><b>llms.txt · AGENTS.md</b><p>current NU7 facts for coding agents</p></a>
 </div>
 </div>
-<pre><span class="c"># install</span>
-<span class="k">cargo install</span> ghost-layer
+<pre><span class="c"># install (prebuilt, or: cargo install --locked ghost-layer)</span>
+<span class="k">curl</span> -fsSL …/releases/latest/download/install.sh | sh
+
+<span class="c"># once: a testnet wallet, created through Ghost + Nym (built in)</span>
+<span class="k">ghost init</span>
 
 <span class="c"># one command: sync, send, wait, verify</span>
-<span class="k">ghost pay</span> --wallet ./w --identity ./w.age \
-  --to utest1… --amount 0.001 --memo <span class="s">"thanks"</span>
+<span class="k">ghost pay</span> --to utest1… --amount 0.001 --memo <span class="s">"thanks"</span>
 
 <span class="c"># prove one payment, reveal nothing else</span>
 <span class="k">ghost proof create</span> --ufvk-file me.ufvk --txid …
@@ -285,7 +287,7 @@ footer{border-top:1px solid var(--line);padding:64px 0 40px;color:var(--muted);f
 
 <footer><div class="wrap">
 <div class="fcols">
-<div><a class="logo" href="#" style="margin-bottom:12px">GHOST LAYER<sup>v0.1</sup></a><p style="margin:0;max-width:30ch">Zcash hides the money. Ghost Layer hides the person. Built at Free Society Hack 2026.</p></div>
+<div><a class="logo" href="#" style="margin-bottom:12px">GHOST LAYER<sup>v0.2</sup></a><p style="margin:0;max-width:30ch">Zcash hides the money. Ghost Layer hides the person. Built at Free Society Hack 2026.</p></div>
 <div><h4>Product</h4><a href="#capabilities">Capabilities</a><a href="#wallet">Ghost Wallet</a><a href="#measured">Evidence</a></div>
 <div><h4>Developers</h4><a href="https://crates.io/crates/ghost-layer">crates.io</a><a href="https://github.com/skartik-sk/ghost-layer/blob/main/docs/json-schema.md">JSON contract</a><a href="https://github.com/skartik-sk/ghost-layer/blob/main/llms.txt">llms.txt</a></div>
 <div><h4>Project</h4><a href="https://github.com/skartik-sk/ghost-layer">GitHub</a><a href="https://github.com/skartik-sk/ghost-layer/blob/main/PRIVACY.md">Privacy note</a><a href="https://github.com/skartik-sk/ghost-layer/blob/main/NEXT_STEPS.md">Next steps</a></div>
