@@ -24,7 +24,7 @@ use ghost_transport::proto::compact_tx_streamer_server::{CompactTxStreamer, Comp
 use ghost_transport::proto::*;
 use ghost_transport::{Client, MAX_MSG, Transport};
 use tonic::{Request, Response, Status, Streaming};
-use tracing::info;
+use tracing::{info, warn};
 
 type BoxStream<T> = Pin<Box<dyn Stream<Item = Result<T, Status>> + Send + 'static>>;
 
@@ -180,7 +180,23 @@ impl GridFetcher {
         tokio::spawn(async move {
             let mut held = Vec::new(); // only used for descending requests
             for cell in plan.cells {
-                match self.cell(c.clone(), conn_id, &kind, nullifiers, &pools, cell, tip).await {
+                // A mixnet stream can drop mid-cell; the channel re-dials through the same transport on the next
+                // call, so retry the whole cell (blocks are only cached once a cell is complete and validated).
+                // Validation failures (data_loss etc.) are never retried.
+                let mut attempt = 0;
+                let res = loop {
+                    let r = self.cell(c.clone(), conn_id, &kind, nullifiers, &pools, cell, tip).await;
+                    match &r {
+                        Err(e) if attempt < 2 && is_transport_error(e) => {
+                            attempt += 1;
+                            warn!(target: "upstream", conn = conn_id, path = "sync", "cell {}..={} failed ({}); retry {attempt}/2",
+                                cell.0, cell.1, e.message());
+                            tokio::time::sleep(std::time::Duration::from_secs(3 * attempt)).await;
+                        }
+                        _ => break r,
+                    }
+                };
+                match res {
                     Err(e) => {
                         let _ = tx.send(Err(e)).await;
                         return;
@@ -256,6 +272,13 @@ impl Gateway {
         info!(target: "upstream", conn, path = "sync", method, "{detail}");
         self.events.record(method, "request", conn, self.sync_transport.label, json!({}));
     }
+}
+
+/// Connection-level failures (worth a retry on a re-dialed channel), as opposed to answers or validation errors.
+fn is_transport_error(e: &Status) -> bool {
+    use tonic::Code;
+    matches!(e.code(), Code::Unavailable | Code::Unknown | Code::Cancelled | Code::DeadlineExceeded)
+        || (e.code() == Code::Internal && e.message().contains("transport"))
 }
 
 fn passthrough_stream<T: Send + 'static>(s: Streaming<T>) -> BoxStream<T> {
@@ -477,3 +500,19 @@ macro_rules! no_detail {
 }
 no_detail!(ChainSpec, TxFilter, RawTransaction, TransparentAddressBlockFilter, AddressList, GetMempoolTxRequest,
     Empty, GetAddressUtxosArg, Duration);
+
+#[cfg(test)]
+mod tests {
+    use super::is_transport_error;
+    use tonic::Status;
+
+    #[test]
+    fn only_connection_failures_are_retried() {
+        assert!(is_transport_error(&Status::unknown("transport error")));
+        assert!(is_transport_error(&Status::unavailable("connection reset")));
+        assert!(is_transport_error(&Status::internal("h2 transport error")));
+        assert!(!is_transport_error(&Status::data_loss("ghost: upstream cell rejected")));
+        assert!(!is_transport_error(&Status::out_of_range("above tip")));
+        assert!(!is_transport_error(&Status::internal("ghost cache: disk full")));
+    }
+}

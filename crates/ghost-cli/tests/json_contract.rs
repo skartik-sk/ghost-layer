@@ -27,7 +27,7 @@ fn check(schema: &str, v: &serde_json::Value) {
     let path = root().join("docs/schemas").join(format!("{schema}.schema.json"));
     let s: serde_json::Value = serde_json::from_str(&std::fs::read_to_string(&path).expect("schema file")).expect("schema JSON");
     let validator = jsonschema::validator_for(&s).expect("valid schema");
-    let errors: Vec<String> = validator.iter_errors(v).map(|e| format!("{} at {}", e, e.instance_path())).collect();
+    let errors: Vec<String> = validator.iter_errors(v).map(|e| format!("{} at {}", e, e.instance_path)).collect();
     assert!(errors.is_empty(), "{schema}: {errors:#?}\n{v}");
 }
 

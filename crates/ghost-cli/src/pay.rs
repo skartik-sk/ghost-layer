@@ -3,7 +3,7 @@
 //! 1. use the running gateway on 127.0.0.1:9067, or start one (`ghost up [--nym]`) for this payment
 //! 2. sync the wallet through it   (zcash-devtool, as a subprocess)
 //! 3. send through it              (zcash-devtool; Ghost queues it, waits a random delay, broadcasts
-//!                                  on a fresh connection) — with a live countdown from the real queue
+//!    on a fresh connection) — with a live countdown from the real queue
 //! 4. poll until mined, print explorer links
 //!
 //! Keys stay in the wallet: Ghost only passes the identity *path* to zcash-devtool and never reads it.
@@ -23,12 +23,12 @@ use crate::{Fail, NymArgs, data_dir, explorer_links, tx_state};
 
 #[derive(clap::Args)]
 pub(crate) struct PayArgs {
-    /// zcash-devtool wallet directory
+    /// zcash-devtool wallet directory (default: the one `ghost init` created)
     #[arg(long)]
-    wallet: PathBuf,
+    wallet: Option<PathBuf>,
     /// age identity file of that wallet (only its path is passed to zcash-devtool; Ghost never reads it)
     #[arg(long)]
-    identity: PathBuf,
+    identity: Option<PathBuf>,
     /// Recipient address (utest1…, ztestsapling…, tm…)
     #[arg(long)]
     to: String,
@@ -46,7 +46,7 @@ pub(crate) struct PayArgs {
     /// Broadcast delay profile if Ghost starts the gateway
     #[arg(long, default_value = "demo", value_parser = ["demo", "privacy"])]
     profile: String,
-    /// zcash-devtool binary (default: $ZCASH_DEVTOOL or `zcash-devtool` on PATH)
+    /// zcash-devtool binary (default: $ZCASH_DEVTOOL, the config, next to ghost, or on PATH)
     #[arg(long)]
     devtool: Option<PathBuf>,
     /// Give up waiting for the block after this many seconds
@@ -94,7 +94,7 @@ async fn gateway_alive(listen: SocketAddr) -> Option<u64> {
 }
 
 /// Stops the gateway we started (never one the user started).
-struct Started(Option<Child>);
+pub(crate) struct Started(Option<Child>);
 impl Drop for Started {
     fn drop(&mut self) {
         if let Some(c) = self.0.as_mut() {
@@ -104,14 +104,38 @@ impl Drop for Started {
     }
 }
 
-fn devtool(a: &PayArgs) -> PathBuf {
-    a.devtool
-        .clone()
-        .or_else(|| std::env::var_os("ZCASH_DEVTOOL").map(PathBuf::from))
-        .unwrap_or_else(|| PathBuf::from("zcash-devtool"))
+/// Use the gateway already listening on `listen`, or start `ghost up` for as long as the returned guard lives.
+pub(crate) async fn ensure_gateway(listen: SocketAddr, upstream: &str, profile: &str, nym: &NymArgs, say: &dyn Fn(&str))
+    -> Result<(Started, &'static str), Fail> {
+    if let Some(tip) = gateway_alive(listen).await {
+        say(&format!("👻 using the running Ghost Layer on {listen} (tip {tip})"));
+        return Ok((Started(None), "existing"));
+    }
+    nym.require_up().await?;
+    let log = data_dir().join("pay-gateway.log");
+    let _ = std::fs::create_dir_all(data_dir());
+    let listen_s = listen.to_string();
+    let mut cmd = Command::new(std::env::current_exe().map_err(|e| Fail::runtime(e.to_string(), "reinstall ghost"))?);
+    cmd.args(["up", "--server", upstream, "--listen", &listen_s, "--profile", profile]);
+    if !nym.on() {
+        cmd.arg("--direct");
+    } else {
+        cmd.args(["--nym-sync", &nym.nym_sync.to_string(), "--nym-broadcast", &nym.nym_broadcast.to_string()]);
+    }
+    let errf = std::fs::File::create(&log).map_err(|e| Fail::runtime(format!("{}: {e}", log.display()), "check ~/.ghost-layer"))?;
+    let child = cmd.stdout(Stdio::null()).stderr(errf).spawn().map_err(|e| Fail::runtime(e.to_string(), "run `ghost up` yourself"))?;
+    let started = Started(Some(child));
+    say(&format!("👻 starting Ghost Layer{} on {listen} …", if nym.on() { " (Nym)" } else { "" }));
+    for _ in 0..240 {
+        if gateway_alive(listen).await.is_some() {
+            return Ok((started, "started"));
+        }
+        tokio::time::sleep(Duration::from_secs(1)).await;
+    }
+    Err(Fail::runtime(format!("gateway did not start in 240 s (log: {})", log.display()), "run `ghost doctor` / check your Nym clients"))
 }
 
-fn strip_ansi(s: &str) -> String {
+pub(crate) fn strip_ansi(s: &str) -> String {
     let mut out = String::new();
     let mut it = s.chars().peekable();
     while let Some(c) = it.next() {
@@ -134,68 +158,46 @@ pub(crate) async fn pay(a: PayArgs, json: bool) -> Result<u8, Fail> {
     if !(a.to.starts_with("utest1") || a.to.starts_with("ztestsapling1") || a.to.starts_with("tm")) {
         return Err(Fail::usage("recipient must be a testnet address (utest1…, ztestsapling1…, tm…)", "Ghost Layer pay is testnet-only"));
     }
-    if !a.wallet.join("data.sqlite").exists() {
-        return Err(Fail::usage(format!("{} is not a zcash-devtool wallet", a.wallet.display()), "create one: zcash-devtool wallet -w <dir> init -n test …"));
+    let Some((wallet, identity)) = crate::setup::wallet_paths(a.wallet.clone(), a.identity.clone()) else {
+        return Err(Fail::usage("no wallet given and none set up", "run `ghost init` once, or pass --wallet <dir> --identity <age file>"));
+    };
+    if !wallet.join("data.sqlite").exists() {
+        return Err(Fail::usage(format!("{} is not a zcash-devtool wallet", wallet.display()), "run `ghost init` to create one"));
     }
-    if !a.identity.exists() {
-        return Err(Fail::usage(format!("identity file {} not found", a.identity.display()), "pass the age identity used at `wallet init -i`"));
+    if !identity.exists() {
+        return Err(Fail::usage(format!("identity file {} not found", identity.display()), "pass the age identity used at `wallet init -i`"));
     }
-    let dt = devtool(&a);
-    if Command::new(&dt).arg("--help").stdout(Stdio::null()).stderr(Stdio::null()).status().is_err() {
-        return Err(Fail::usage(format!("zcash-devtool not found ({})", dt.display()), "pass --devtool <path> or set ZCASH_DEVTOOL"));
-    }
+    let dt = crate::setup::devtool(a.devtool.as_ref());
+    crate::setup::check_devtool(&dt)?;
     let server = a.listen.to_string();
     let t0 = Instant::now();
 
     // 1. gateway
-    let mut _started = Started(None);
-    let gw_mode = if let Some(tip) = gateway_alive(a.listen).await {
-        ui.step(&format!("👻 using the running Ghost Layer on {} (tip {tip})", a.listen));
-        "existing"
-    } else {
-        a.nym.require_up().await?;
-        let log = data_dir().join("pay-gateway.log");
-        let _ = std::fs::create_dir_all(data_dir());
-        let mut cmd = Command::new(std::env::current_exe().map_err(|e| Fail::runtime(e.to_string(), "reinstall ghost"))?);
-        cmd.args(["up", "--server", &a.server, "--listen", &server, "--profile", &a.profile]);
-        if !a.nym.on() {
-            cmd.arg("--direct");
-        } else {
-            cmd.args(["--nym-sync", &a.nym.nym_sync.to_string(), "--nym-broadcast", &a.nym.nym_broadcast.to_string()]);
-        }
-        let errf = std::fs::File::create(&log).map_err(|e| Fail::runtime(format!("{}: {e}", log.display()), "check ~/.ghost-layer"))?;
-        let child = cmd.stdout(Stdio::null()).stderr(errf).spawn().map_err(|e| Fail::runtime(e.to_string(), "run `ghost up` yourself"))?;
-        _started = Started(Some(child));
-        ui.step(&format!("👻 starting Ghost Layer{} on {} …", if a.nym.on() { " (Nym)" } else { "" }, a.listen));
-        let mut ok = false;
-        for _ in 0..240 {
-            if gateway_alive(a.listen).await.is_some() {
-                ok = true;
-                break;
-            }
-            tokio::time::sleep(Duration::from_secs(1)).await;
-        }
-        if !ok {
-            return Err(Fail::runtime(format!("gateway did not start in 240 s (log: {})", log.display()), "run `ghost doctor --nym` / check your Nym clients"));
-        }
-        "started"
-    };
+    let (_started, gw_mode) = ensure_gateway(a.listen, &a.server, &a.profile, &a.nym, &|m| ui.step(m)).await?;
 
     // 2. sync through the gateway
     ui.step("🔄 syncing wallet through Ghost Layer (grid-aligned) …");
-    let out = Command::new(&dt)
-        .args(["wallet", "-w"]).arg(&a.wallet).args(["sync", "-s", &server])
-        .stdin(Stdio::null()).output()
-        .map_err(|e| Fail::runtime(e.to_string(), "check --devtool"))?;
-    if !out.status.success() {
+    // A sync interrupted by a dropped mixnet connection resumes where it stopped: retry it.
+    for attempt in 1..=3 {
+        let out = Command::new(&dt)
+            .args(["wallet", "-w"]).arg(&wallet).args(["sync", "-s", &server])
+            .stdin(Stdio::null()).output()
+            .map_err(|e| Fail::runtime(e.to_string(), "check --devtool"))?;
+        if out.status.success() {
+            break;
+        }
         let err = strip_ansi(&String::from_utf8_lossy(&out.stderr));
-        return Err(Fail::runtime(format!("wallet sync failed: {}", err.lines().last().unwrap_or("")), "run `ghost doctor`; is the wallet for testnet?"));
+        let last = err.lines().rev().find(|l| !l.trim().is_empty()).unwrap_or("").to_string();
+        if attempt == 3 || !last.contains("transport") {
+            return Err(Fail::runtime(format!("wallet sync failed: {last}"), "run `ghost doctor`; is the wallet for testnet?"));
+        }
+        ui.step(&format!("   ↻ sync interrupted ({last}); resuming ({attempt}/2) …"));
     }
     ui.step("✅ synced");
 
     // 3. send, with a live countdown from Ghost's real broadcast queue
     let mut cmd = Command::new(&dt);
-    cmd.args(["wallet", "-w"]).arg(&a.wallet).args(["send", "-i"]).arg(&a.identity)
+    cmd.args(["wallet", "-w"]).arg(&wallet).args(["send", "-i"]).arg(&identity)
         .args(["--address", &a.to, "--value", &zat.to_string(), "-s", &server]);
     if let Some(m) = &a.memo {
         cmd.args(["--memo", m]);
@@ -236,6 +238,8 @@ pub(crate) async fn pay(a: PayArgs, json: bool) -> Result<u8, Fail> {
         let line = stderr.lines().rev().find(|l| l.starts_with("Error")).unwrap_or("send failed").to_string();
         let hint = if line.contains("Insufficient balance") {
             "not enough spendable funds: zcash-devtool needs ~10 confirmations on received/change notes (~4 min); wait and retry"
+        } else if line.contains("transport error") || line.contains("unavailable") {
+            "Ghost could not reach the network through Nym, so nothing was sent and your IP was not exposed; retry in a few minutes (`ghost status` shows the tx)"
         } else if line.contains("SendFailed") || line.contains("code:") {
             "the network rejected the transaction; see `ghost status`"
         } else {

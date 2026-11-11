@@ -1,0 +1,72 @@
+# Prebuilt binaries for `ghost` (and the zcash-devtool wallet it drives), so users don't need Rust.
+# Triggered by pushing a tag like v0.2.0. Each archive ships with a .sha256 file; scripts/install.sh checks it.
+name: release
+
+on:
+  push:
+    tags: ["v*"]
+  workflow_dispatch:
+
+permissions:
+  contents: read
+
+env:
+  # Same zcash-devtool revision the README and evidence use.
+  DEVTOOL_REV: 0b3436bb8d235c67cd36b800cb45a7b1b489c415
+
+jobs:
+  build:
+    strategy:
+      fail-fast: false
+      matrix:
+        include:
+          - { os: macos-14, target: aarch64-apple-darwin }
+          - { os: macos-13, target: x86_64-apple-darwin }
+          - { os: ubuntu-22.04, target: x86_64-unknown-linux-gnu }
+    runs-on: ${{ matrix.os }}
+    steps:
+      - uses: actions/checkout@11d5960a326750d5838078e36cf38b85af677262 # v4
+      - uses: dtolnay/rust-toolchain@b725eda525362e7cf34af9a7243cac1e3f01a7ec # stable
+        with:
+          targets: ${{ matrix.target }}
+      - name: Install protoc (OS package manager; no third-party action)
+        shell: bash
+        run: if [ "$RUNNER_OS" = macOS ]; then brew install protobuf; else sudo apt-get update && sudo apt-get install -y protobuf-compiler; fi
+      - name: Build ghost
+        run: cargo build --release --locked -p ghost-layer --target ${{ matrix.target }}
+      - name: Build zcash-devtool (pinned)
+        run: |
+          git clone https://github.com/zcash/zcash-devtool ../zcash-devtool
+          git -C ../zcash-devtool checkout "$DEVTOOL_REV"
+          cargo build --release --locked --manifest-path ../zcash-devtool/Cargo.toml --target ${{ matrix.target }}
+      - name: Package
+        shell: bash
+        run: |
+          name="ghost-${GITHUB_REF_NAME}-${{ matrix.target }}"
+          mkdir -p "dist/$name"
+          cp "target/${{ matrix.target }}/release/ghost" "dist/$name/"
+          cp "../zcash-devtool/target/${{ matrix.target }}/release/zcash-devtool" "dist/$name/"
+          cp README.md LICENSE PRIVACY.md "dist/$name/"
+          tar -C dist -czf "dist/$name.tar.gz" "$name"
+          (cd dist && shasum -a 256 "$name.tar.gz" > "$name.tar.gz.sha256")
+      - uses: actions/upload-artifact@ea165f8d65b6e75b540449e92b4886f43607fa02 # v4
+        with:
+          name: ${{ matrix.target }}
+          path: dist/*.tar.gz*
+
+  publish:
+    needs: build
+    runs-on: ubuntu-22.04
+    permissions:
+      contents: write   # only this job creates the release
+    if: startsWith(github.ref, 'refs/tags/')
+    steps:
+      - uses: actions/checkout@11d5960a326750d5838078e36cf38b85af677262 # v4
+      - uses: actions/download-artifact@d3f86a106a0bac45b974a628896c90dbdf5c8093 # v4
+        with:
+          path: dist
+          merge-multiple: true
+      - name: Create GitHub release
+        env:
+          GH_TOKEN: ${{ github.token }}
+        run: gh release create "$GITHUB_REF_NAME" dist/* scripts/install.sh --title "$GITHUB_REF_NAME" --generate-notes

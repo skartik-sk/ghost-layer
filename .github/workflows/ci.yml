@@ -1,0 +1,38 @@
+# Build and test on every push and PR. The end-to-end runs (scripts/e2e_local.sh needs Zebra + Zaino,
+# scripts/e2e_testnet.sh needs testnet funds and Nym) stay manual; their evidence is committed under evidence/.
+name: ci
+
+on:
+  push:
+    branches: [main]
+  pull_request:
+
+permissions:
+  contents: read
+
+jobs:
+  test:
+    strategy:
+      fail-fast: false
+      matrix:
+        os: [ubuntu-22.04, macos-14]
+    runs-on: ${{ matrix.os }}
+    steps:
+      - uses: actions/checkout@11d5960a326750d5838078e36cf38b85af677262 # v4
+      - uses: dtolnay/rust-toolchain@b725eda525362e7cf34af9a7243cac1e3f01a7ec # stable
+        with:
+          components: clippy
+      - name: Install protoc (OS package manager; no third-party action)
+        shell: bash
+        run: if [ "$RUNNER_OS" = macOS ]; then brew install protobuf; else sudo apt-get update && sudo apt-get install -y protobuf-compiler; fi
+      - uses: Swatinem/rust-cache@d1527c8f67ef9af357290475d4af4b0fab8f12e0 # v2
+      - name: Lockfile is up to date (nym-* crates must stay pinned at 1.21.6)
+        run: |
+          cargo metadata --locked --format-version 1 > /dev/null
+          ! grep -A1 '^name = "nym-' Cargo.lock | grep -q 'version = "1.22'
+      - name: Test
+        run: cargo test --workspace --locked
+      - name: Test without built-in Nym
+        run: cargo test -p ghost-layer --locked --no-default-features
+      - name: Clippy
+        run: cargo clippy --workspace --locked --all-targets -- -D warnings

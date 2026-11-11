@@ -19,6 +19,9 @@ mod mcp;
 mod viewkey;
 mod zecproof;
 mod pay;
+mod setup;
+#[cfg(feature = "embedded-nym")]
+mod nym_embedded;
 use ghost_transport::proto::{ChainSpec, Empty, TxFilter};
 use ghost_transport::{Transport, Upstream};
 use serde_json::json;
@@ -44,6 +47,8 @@ struct Cli {
 
 #[derive(Subcommand)]
 enum Cmd {
+    /// First run: create a testnet wallet through Ghost (over Nym) and save it as the default for pay/dashboard/mcp
+    Init(setup::InitArgs),
     /// Start the gateway; point your wallet at 127.0.0.1:9067
     Up(UpArgs),
     /// Send a private payment in one command: gateway → sync → send (random delay, fresh connection) → mined
@@ -55,6 +60,12 @@ enum Cmd {
     /// ZecProof: prove ONE payment you sent (create) or check a proof (verify)
     #[command(subcommand)]
     Proof(zecproof::ProofCmd),
+    /// Run the two Nym clients (sync :1080, broadcast :1081, different exits) until Ctrl-C, for other wallets
+    /// or long sessions. `ghost up` / `pay` / `init` start them by themselves when nothing is running.
+    Nym {
+        #[command(flatten)]
+        nym: NymArgs,
+    },
     /// Plain-language explanation of the three leaks and what Ghost Layer closes
     Explain,
     /// Linkage heuristics over an observer log (ShadeCheck events.jsonl) — the attacker's view
@@ -190,24 +201,36 @@ impl NymArgs {
         Ok((Transport::nym(sync, "nym-sync", self.nym_sync), Transport::nym(bcast, "nym-broadcast", self.nym_broadcast)))
     }
 
-    /// Fail closed: refuse to start with --nym unless both clients are listening on different exits.
+    /// Fail closed: refuse to start with Nym unless both clients are listening, on different exits.
+    /// With the built-in client (default build), start them here if nothing is running yet.
     async fn require_up(&self) -> Result<(), Fail> {
-        if self.on() {
-            let ip = |id| nym_exit(id).and_then(|s| s.split('(').nth(1).map(|x| x.trim_end_matches(')').to_string()));
-            if let (Some(a), Some(b)) = (ip("ghost-sync"), ip("ghost-bcast")) {
-                if a == b {
-                    return Err(Fail::runtime(
-                        format!("sync and broadcast Nym clients use the same exit IP {a}"),
-                        "run scripts/nym_setup.sh up --reinit to pick two different exits",
-                    ));
-                }
-            }
+        if !self.on() {
+            return Ok(());
+        }
+        let listening = |a| async move { tokio::net::TcpStream::connect(a).await.is_ok() };
+        #[cfg(feature = "embedded-nym")]
+        if !listening(self.nym_sync).await && !listening(self.nym_broadcast).await {
+            // Nothing running: start Nym inside this process (lives as long as it does).
+            eprintln!("👻 starting Nym (built in): picking and testing two different exits (~1-2 min) …");
+            nym_embedded::start(self.nym_sync, self.nym_broadcast, DEFAULT_SERVER).await.map_err(|e| {
+                Fail::runtime(format!("could not start Nym: {e:#} (refusing to fall back to direct)"),
+                    "check your internet connection and retry; or run your own clients with scripts/nym_setup.sh")
+            })?;
         }
         for a in [self.nym_sync, self.nym_broadcast] {
-            if self.on() && tokio::net::TcpStream::connect(a).await.is_err() {
+            if !listening(a).await {
                 return Err(Fail::runtime(
                     format!("Nym SOCKS5 client {a} is not running (refusing to fall back to direct)"),
-                    "start Nym with scripts/nym_setup.sh up (or pass --direct: the server will see your IP)",
+                    "run `ghost nym` (or pass --direct: the server will see your IP)",
+                ));
+            }
+        }
+        let exit = |id| nym_exit(id).and_then(|s| s.split('(').nth(1).map(|x| x.trim_end_matches(')').to_string()));
+        if let (Some(a), Some(b)) = (exit("ghost-sync"), exit("ghost-bcast")) {
+            if a == b {
+                return Err(Fail::runtime(
+                    format!("sync and broadcast Nym clients use the same exit {a}"),
+                    "restart `ghost nym` (or scripts/nym_setup.sh up --reinit) to pick two different exits",
                 ));
             }
         }
@@ -239,10 +262,19 @@ pub fn data_dir() -> PathBuf {
 
 fn main() -> ExitCode {
     let cli = Cli::parse();
-    let level = if cli.quiet { "error" } else if cli.verbose { "info" } else { "warn,upstream=info,broadcast=info,grid=info" };
+    // Built-in Nym logs a WARN per gateway bandwidth top-up and an ERROR for every local port check: keep those
+    // out of the default output (RUST_LOG still overrides everything).
+    let nym_quiet = "nym_gateway_client=error,nym_socks5_client_core::socks=off,nym_sphinx_chunking=error,nym_socks5_proxy_helpers=off,nym_client_core=off,nym_statistics_common=off";
+    let level = if cli.quiet {
+        "error,nym_socks5_client_core::socks=off".to_string()
+    } else if cli.verbose {
+        "info".to_string()
+    } else {
+        format!("warn,upstream=info,broadcast=info,grid=info,{nym_quiet}")
+    };
     tracing_subscriber::fmt()
         .with_ansi(std::io::IsTerminal::is_terminal(&std::io::stderr()))
-        .with_env_filter(tracing_subscriber::EnvFilter::try_from_default_env().unwrap_or_else(|_| level.into()))
+        .with_env_filter(tracing_subscriber::EnvFilter::try_from_default_env().unwrap_or_else(|_| level.as_str().into()))
         .with_writer(std::io::stderr)
         .init();
 
@@ -263,12 +295,14 @@ fn main() -> ExitCode {
 
 async fn run(cli: Cli) -> Result<u8, Fail> {
     match cli.cmd {
+        Cmd::Init(a) => setup::init(a, cli.json).await,
         Cmd::Up(a) => up(a, cli.json).await,
         Cmd::Status => status(cli.json).await,
         Cmd::Pay(a) => pay::pay(a, cli.json).await,
         Cmd::Proof(c) => zecproof::run(c, cli.json).await,
         Cmd::Dashboard(a) => dashboard::dashboard(a, cli.json).await,
         Cmd::Mcp(a) => mcp::mcp(a).await,
+        Cmd::Nym { nym } => nym_daemon(nym, cli.json).await,
         Cmd::Explain => {
             explain(cli.json);
             Ok(0)
@@ -471,8 +505,11 @@ fn chrono_now() -> String {
     format!("unix {} ({})", ms / 1000, fmt_ms(ms))
 }
 
+/// One ShadeCheck report: (file, status, findings per severity, rule ids).
+type ShadeRow = (String, String, BTreeMap<String, usize>, Vec<String>);
+
 /// Summarises every ShadeCheck report JSON in a directory: status and findings per rule/severity.
-fn shadecheck_summary(dir: &std::path::Path) -> Result<Vec<(String, String, BTreeMap<String, usize>, Vec<String>)>, Fail> {
+fn shadecheck_summary(dir: &std::path::Path) -> Result<Vec<ShadeRow>, Fail> {
     let mut rows = Vec::new();
     let entries = std::fs::read_dir(dir).map_err(|e| Fail::usage(format!("{}: {e}", dir.display()), "pass the ShadeCheck output directory"))?;
     let mut files: Vec<_> = entries.flatten().map(|e| e.path()).filter(|p| p.extension().is_some_and(|x| x == "json")).collect();
@@ -521,6 +558,24 @@ fn shadecheck_report(before: &std::path::Path, after: &std::path::Path, out: Opt
     } else {
         println!("{body}\n→ wrote {}", path.display());
     }
+    Ok(0)
+}
+
+/// `ghost nym`: start the clients (unless already running) and keep them up until Ctrl-C.
+async fn nym_daemon(n: NymArgs, json: bool) -> Result<u8, Fail> {
+    if !n.on() {
+        return Err(Fail::usage("`ghost nym` with --direct does nothing", "drop --direct"));
+    }
+    n.require_up().await?;
+    if json {
+        println!("{}", json!({"schema_version": 1, "ok": true, "sync": n.nym_sync, "broadcast": n.nym_broadcast,
+            "sync_exit": nym_exit("ghost-sync"), "broadcast_exit": nym_exit("ghost-bcast")}));
+    } else {
+        println!("✅ Nym sync on {} via {}", n.nym_sync, nym_exit("ghost-sync").unwrap_or_else(|| "?".into()));
+        println!("✅ Nym broadcast on {} via {}", n.nym_broadcast, nym_exit("ghost-bcast").unwrap_or_else(|| "?".into()));
+        println!("   exits are re-picked automatically if they stop working. Ctrl-C to stop.");
+    }
+    let _ = tokio::signal::ctrl_c().await;
     Ok(0)
 }
 

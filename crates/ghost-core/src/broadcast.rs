@@ -95,6 +95,9 @@ pub struct Queue {
     db: Mutex<Connection>,
 }
 
+/// A queued broadcast awaiting its slot: (txid, raw tx, scheduled_at_ms, mode).
+type PendingRow = (String, Vec<u8>, i64, String);
+
 impl Queue {
     pub fn open(path: &Path) -> anyhow::Result<Self> {
         if let Some(dir) = path.parent() {
@@ -149,7 +152,7 @@ impl Queue {
         Ok(())
     }
 
-    fn pending(&self) -> anyhow::Result<Vec<(String, Vec<u8>, i64, String)>> {
+    fn pending(&self) -> anyhow::Result<Vec<PendingRow>> {
         let db = self.db.lock().unwrap();
         let mut st = db.prepare("SELECT txid,raw,scheduled_at_ms,mode FROM broadcasts WHERE status='pending'")?;
         let rows = st.query_map([], |r| Ok((r.get(0)?, r.get(1)?, r.get(2)?, r.get(3)?)))?;
@@ -181,7 +184,10 @@ impl Queue {
     }
 }
 
-const RETRIES: u32 = 3;
+/// Waits between broadcast attempts after a connection failure (each attempt opens a fresh connection).
+/// About 3.3 minutes in total: long enough for a dead Nym exit to be replaced, well inside a tx's ~40-block
+/// expiry. A tx the network rejects is never retried; only "could not reach the network" is.
+const RETRY_BACKOFF_S: [u64; 5] = [5, 15, 30, 60, 90];
 
 pub struct Scheduler<B: Broadcaster> {
     queue: Arc<Queue>,
@@ -269,7 +275,8 @@ impl<B: Broadcaster> Scheduler<B> {
 
     async fn attempt(&self, txid: &str, raw: Vec<u8>, at_ms: i64) -> Outcome {
         let mut last_err = String::new();
-        for n in 1..=RETRIES {
+        let attempts = RETRY_BACKOFF_S.len() as u32 + 1;
+        for n in 1..=attempts {
             match self.broadcaster.broadcast(raw.clone()).await {
                 Ok(sent) => {
                     let accepted = sent.error_code == 0;
@@ -285,8 +292,8 @@ impl<B: Broadcaster> Scheduler<B> {
                 Err(e) => {
                     last_err = format!("{e:#}");
                     warn!(target: "broadcast", %txid, attempt = n, "broadcast attempt failed: {last_err}");
-                    if n < RETRIES {
-                        tokio::time::sleep(Duration::from_secs(5)).await;
+                    if let Some(wait) = RETRY_BACKOFF_S.get(n as usize - 1) {
+                        tokio::time::sleep(Duration::from_secs(*wait)).await;
                     }
                 }
             }

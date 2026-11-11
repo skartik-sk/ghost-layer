@@ -239,10 +239,12 @@ impl ServerHandler for GhostMcp {
 
 pub(crate) async fn mcp(a: McpArgs) -> Result<u8, Fail> {
     let pay = if a.allow_pay {
-        let (Some(max), Some(per_hour), Some(wallet), Some(identity)) = (a.max_amount.clone(), a.max_per_hour, a.wallet.clone(), a.identity.clone())
+        // The wallet is fixed here (flags, else the one `ghost init` saved); the agent can never choose it.
+        let (Some(max), Some(per_hour), Some((wallet, identity))) =
+            (a.max_amount.clone(), a.max_per_hour, crate::setup::wallet_paths(a.wallet.clone(), a.identity.clone()))
         else {
-            return Err(Fail::usage("--allow-pay needs --max-amount, --max-per-hour, --wallet and --identity",
-                "e.g. ghost mcp --allow-pay --max-amount 0.001 --max-per-hour 3 --wallet ./w --identity ./w.age"));
+            return Err(Fail::usage("--allow-pay needs --max-amount, --max-per-hour and a wallet (`ghost init`, or --wallet/--identity)",
+                "e.g. ghost mcp --allow-pay --max-amount 0.001 --max-per-hour 3"));
         };
         Some(PayPolicy { max_zat: crate::pay::taz_to_zat(&max)?, max_per_hour: per_hour, wallet, identity, devtool: a.devtool.clone(),
             calls: Arc::new(Mutex::new(Vec::new())) })

@@ -91,7 +91,7 @@ fn job_args(a: &DashArgs, path: &str, body: &Value) -> Result<(String, Vec<Strin
     match path {
         "/api/pay" => {
             let (Some(w), Some(i)) = (&a.wallet, &a.identity) else {
-                return Err("Pay is disabled: start `ghost dashboard --wallet <dir> --identity <age file>`".into());
+                return Err("Pay is disabled: run `ghost init` once (or start `ghost dashboard --wallet <dir> --identity <age file>`)".into());
             };
             let to = field("to");
             if !(to.starts_with("utest1") || to.starts_with("ztestsapling1") || to.starts_with("tm")) || to.len() > 600 {
@@ -360,7 +360,15 @@ async fn respond(mut sock: tokio::net::TcpStream, a: Arc<DashArgs>, events: Arc<
     let _ = sock.write_all(body.as_bytes()).await;
 }
 
-pub(crate) async fn dashboard(a: DashArgs, json_out: bool) -> Result<u8, Fail> {
+pub(crate) async fn dashboard(mut a: DashArgs, json_out: bool) -> Result<u8, Fail> {
+    // Flags win; otherwise use the wallet `ghost init` set up, so plain `ghost dashboard` can pay and prove.
+    let cfg = crate::setup::load();
+    if a.wallet.is_none() && a.identity.is_none() {
+        a.wallet = cfg.wallet;
+        a.identity = cfg.identity;
+    }
+    a.ufvk_file = a.ufvk_file.or(cfg.ufvk_file);
+    a.devtool = a.devtool.or(cfg.devtool);
     if !a.listen.ip().is_loopback() {
         return Err(Fail::usage("the dashboard is loopback-only", "use --listen 127.0.0.1:<port>"));
     }
@@ -381,7 +389,7 @@ pub(crate) async fn dashboard(a: DashArgs, json_out: bool) -> Result<u8, Fail> {
         println!("👻 Ghost Wallet: http://{}/?t={}  (Pay · Proof · Live; loopback only; Ctrl-C to stop)", a.listen, token);
         println!("   the ?t= token authorises Pay/Proof for this run only; don't share it");
         println!("   pay: {}  ·  proof create: {}  ·  cap {} TAZ  ·  {}",
-            if a.wallet.is_some() && a.identity.is_some() { "enabled" } else { "disabled (--wallet/--identity)" },
+            if a.wallet.is_some() && a.identity.is_some() { "enabled" } else { "disabled (run `ghost init`, or pass --wallet/--identity)" },
             if a.ufvk_file.is_some() { "enabled" } else { "disabled (--ufvk-file)" }, a.max_amount,
             if a.nym.on() { "Nym" } else { "--direct" });
         println!("   reading: queue ~/.ghost-layer/ghost.sqlite · upstream events {} · evidence {}", events.display(), a.evidence.display());
