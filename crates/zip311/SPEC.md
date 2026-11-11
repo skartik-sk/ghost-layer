@@ -21,7 +21,7 @@ one Halo2 circuit. A disclosure entry for an Orchard-protocol spend is:
 | `spendAuthSig` | 64 | RedPallas SpendAuth signature, appended after the unsigned encoding |
 
 **Creating.** The sender builds a new one-action bundle, with the same pool, protocol version and
-flags as the transaction's bundle, that spends the same note **at the transaction's anchor**. This
+flags as the transaction's bundle (protocol `V2` in place of `InsecureV1`), that spends the same note **at the transaction's anchor**. This
 reuses the witness the wallet already used, as the ZIP does for Sapling. The note gives the same
 nullifier `nf`, and a fresh `α` gives `rk = SpendAuthSig.RandomizePublic(α, ak)`. The action's
 output is the builder's zero-valued dummy, or the fabricated self-output when cross-address
@@ -31,7 +31,7 @@ transfers are disabled. The sender proves the action, encodes the unsigned discl
 **Verifying.** For the entry at `index`, take `anchor` and `flags` from the transaction's bundle
 and `nf` from `tx.actions[index]`. Check that `rk` is not the identity. Verify `proof` against the
 instance `(anchor, cv_net, nf, rk, cmx, enableSpends, enableOutputs, disableCrossAddress)` with the
-circuit version that the bundle's protocol version selects. Then verify `spendAuthSig` under `rk`
+circuit version that the bundle's protocol version selects. The one exception: for an `InsecureV1` (pre-NU6.2) bundle, both sides use the fixed `V2` circuit, so a disclosure proof never relies on the circuit with the known soundness bug. Then verify `spendAuthSig` under `rk`
 on `digest`.
 
 Why this works. The circuit shows that whoever made the proof knows a note in the tree at

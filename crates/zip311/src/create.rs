@@ -112,7 +112,7 @@ pub fn create<V, R: Rng + CryptoRng>(
             return Err(Error::WrongAnchor { pool, index });
         }
 
-        let version = bundle.bundle_version();
+        let version = crate::disclosure_version(bundle.bundle_version());
         let kind = BundleType::Transactional { bundle_required: true, pad_to_minimum: Some(1) };
         let mut b = Builder::new(kind, version, *bundle.flags(), *bundle.anchor()).map_err(|e| build(&e))?;
         b.add_spend(s.fvk.clone(), s.note, s.merkle_path.clone()).map_err(|e| build(&e))?;

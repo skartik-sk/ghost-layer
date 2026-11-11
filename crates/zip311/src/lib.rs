@@ -270,23 +270,50 @@ impl fmt::Display for Error {
 
 impl std::error::Error for Error {}
 
+/// The bundle version a disclosure's fresh action is built and verified under.
+///
+/// The disclosure proof is new, so it never uses the pre-NU6.2 circuit, which has a known
+/// soundness bug, even for a transaction that did. The fixed circuit has the same public
+/// inputs (anchor, nullifier, rk, …), so the claim it proves is the same.
+pub(crate) fn disclosure_version(tx_bundle: orchard::bundle::BundleVersion) -> orchard::bundle::BundleVersion {
+    if tx_bundle.protocol_version() == orchard::ProtocolVersion::InsecureV1 {
+        orchard::bundle::BundleVersion::orchard_v2()
+    } else {
+        tx_bundle
+    }
+}
+
 /// Proving / verifying keys are expensive to build (seconds); build each version once per process.
-const VERSIONS: [OrchardCircuitVersion; 3] = [
-    OrchardCircuitVersion::InsecurePreNu6_2,
-    OrchardCircuitVersion::FixedPostNu6_2,
-    OrchardCircuitVersion::PostNu6_3,
-];
+/// Only secure circuit versions are listed, so the insecure one can never be built here.
+const VERSIONS: [OrchardCircuitVersion; 2] = [OrchardCircuitVersion::FixedPostNu6_2, OrchardCircuitVersion::PostNu6_3];
 
 fn slot(v: OrchardCircuitVersion) -> usize {
-    VERSIONS.iter().position(|x| *x == v).expect("known circuit version")
+    VERSIONS.iter().position(|x| *x == v).expect("secure circuit version (see disclosure_version)")
 }
 
 pub(crate) fn proving_key(v: OrchardCircuitVersion) -> &'static ProvingKey {
-    static PK: [OnceLock<ProvingKey>; 3] = [OnceLock::new(), OnceLock::new(), OnceLock::new()];
+    static PK: [OnceLock<ProvingKey>; 2] = [OnceLock::new(), OnceLock::new()];
     PK[slot(v)].get_or_init(|| ProvingKey::build(v))
 }
 
 pub(crate) fn verifying_key(v: OrchardCircuitVersion) -> &'static VerifyingKey {
-    static VK: [OnceLock<VerifyingKey>; 3] = [OnceLock::new(), OnceLock::new(), OnceLock::new()];
+    static VK: [OnceLock<VerifyingKey>; 2] = [OnceLock::new(), OnceLock::new()];
     VK[slot(v)].get_or_init(|| VerifyingKey::build(v))
+}
+
+#[cfg(test)]
+mod tests {
+    use super::*;
+    use orchard::bundle::BundleVersion;
+
+    #[test]
+    fn disclosures_never_use_the_insecure_circuit() {
+        for v in [BundleVersion::orchard_insecure_v1(), BundleVersion::orchard_v2(), BundleVersion::orchard_v3(), BundleVersion::ironwood_v3()] {
+            let d = disclosure_version(v);
+            assert_ne!(d.circuit_version(), OrchardCircuitVersion::InsecurePreNu6_2);
+            assert_eq!(d.value_pool(), v.value_pool());
+            assert!(VERSIONS.contains(&d.circuit_version()));
+        }
+        assert!(!VERSIONS.contains(&OrchardCircuitVersion::InsecurePreNu6_2));
+    }
 }

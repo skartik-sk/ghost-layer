@@ -156,7 +156,7 @@ pub fn verify<V>(pd: &PaymentDisclosure, tx: &TxData<V>, coin_type: u32) -> Resu
         // Anchor and nullifier come from the transaction: the proof is about *its* spent note.
         let instance = Instance::from_parts(*bundle.anchor(), cv_net, *action.nullifier(), rk.clone(), cmx, flags)
             .ok_or(bad.clone())?;
-        let vk = verifying_key(bundle.bundle_version().circuit_version());
+        let vk = verifying_key(crate::disclosure_version(bundle.bundle_version()).circuit_version());
         Proof::new(s.proof.clone()).verify(vk, &[instance]).map_err(|_| bad)?;
         rk.verify(&digest, &Signature::<SpendAuth>::from(s.spend_auth_sig))
             .map_err(|_| Error::InvalidSignature { pool, index })?;
