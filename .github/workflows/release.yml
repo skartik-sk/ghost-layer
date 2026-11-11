@@ -34,7 +34,7 @@ jobs:
         run: if [ "$RUNNER_OS" = macOS ]; then brew install protobuf; else sudo apt-get update && sudo apt-get install -y protobuf-compiler; fi
       - name: Build ghost
         run: cargo build --release --locked -p ghost-layer --target ${{ matrix.target }}
-      - name: Build zcash-devtool (pinned, plus patches/zcash-devtool: identity 0600, `wallet disclose`)
+      - name: Build zcash-devtool (pinned, with patches/zcash-devtool applied)
         run: |
           git clone https://github.com/zcash/zcash-devtool ../zcash-devtool
           git -C ../zcash-devtool checkout "$DEVTOOL_REV"
