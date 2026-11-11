@@ -45,6 +45,7 @@ Ghost Layer is a small local gateway between any lightwalletd-compatible wallet 
 | `ghost pay` (one command) | real payment with memo; receiver's viewing key decrypts amount **and memo**; `--json` output validated by `cargo test` | [`evidence/pay_demo.md`](evidence/pay_demo.md) |
 | Queue mode + restart-resume | `--send-mode queue`: wallet returns in 3.6 s, `ghost status` tracks the real outcome; killed with a tx queued → restart gives a **fresh** random delay, sent **exactly once**, mined | [`evidence/p2/README.md`](evidence/p2/README.md) |
 | `ghost verify --ufvk` | read-only decryption of Ironwood outputs with a viewing key (incoming / outgoing / change; negative control) | [`evidence/ufvk_verify.md`](evidence/ufvk_verify.md) |
+| **ZIP 311 disclosure** | a real `zpd1…` for a real `ghost pay` payment (tx 4d66c913…): the wallet proves spend authority with a fresh Halo2 proof (3 s), `ghost proof verify` checks it against the chain (4 s) and shows recipient, 50,000 zat, memo and the signed challenge; changed signature, proof or message are all rejected | [`evidence/zip311.md`](evidence/zip311.md) |
 | **ZecProof** | a real proof for our `ghost pay` payment verifies (0.001 TAZ, memo, height); tampered OCK, other tx/action, mainnet claim and receiver's key are all rejected | [`evidence/zecproof.md`](evidence/zecproof.md) |
 | MCP server | a real MCP client (Claude Code) calls `ghost_status` + `ghost_verify` and answers from real data; `ghost_pay` caps refuse over-limit/mainnet | [`evidence/mcp_demo.md`](evidence/mcp_demo.md) |
 | **Real testnet payments** | before (direct): [`4d8f96ec…126b4970`](https://testnet.zcashexplorer.app/transactions/4d8f96ec56cd36871d6611e8fbe72cfc37cd7e9730d32cafeb2992fa126b4970), mined at 4582106 · **after (Ghost Layer + Nym)**: [`09f0f0b0…2bd3ce69`](https://testnet.zcashexplorer.app/transactions/09f0f0b01942a658197f65563a977c66fc19f8823268b0e547470e022bd3ce69), mined at 4582118: sync via one Nym exit, broadcast on a fresh connection via another after a 16.3 s random delay | [`evidence/testnet_tx.md`](evidence/testnet_tx.md) |
@@ -98,6 +99,7 @@ All commands accept `--json`. Exit codes: `0` ok, `1` runtime failure (or "not m
 | `ghost init` | first run: testnet wallet created through Ghost + Nym; saved as the default for pay / dashboard / mcp |
 | `ghost pay` | one-command private payment: gateway → sync → send (random delay, fresh connection) → mined → explorer links |
 | `ghost proof create / verify` | **ZecProof**: prove ONE payment you sent (`zecproof1…`), revealing only that output; anyone can verify it against the chain |
+| `ghost proof verify zpd1…` | **ZIP 311 payment disclosure**: also proves the *sender* controlled the spend (zero-knowledge proof + signature over your challenge). Create one in the wallet with `zcash-devtool wallet disclose --txid … --msg …` (bundled in the release); library: [`zip311`](crates/zip311) on crates.io |
 | `ghost dashboard` | **Ghost Wallet** on `127.0.0.1:9070` (loopback only): Pay · Proof · Live (what the server sees). Uses the `ghost init` wallet (or `--wallet --identity --ufvk-file`) |
 | `ghost nym` | run the built-in Nym clients (sync `:1080`, broadcast `:1081`, different exits, self-healing) until Ctrl-C |
 | `ghost mcp` | MCP server (stdio) for AI agents: read-only tools; `ghost_pay` only with `--allow-pay` + caps |
@@ -193,6 +195,7 @@ Crates: `ghost-core` (grid planner + broadcast scheduler + upstream event log, n
 | `zcash_client_backend` / `zcash_keys` (UFVK decryption, `verify --ufvk`) | librustzcash @ `eb38d7a3` (0.25.0-pre.2 / 0.17.0-pre.2) |
 | `orchard` / `zcash_note_encryption` (ZecProof: OCK, `NoteEncryptionDomain<IronwoodVersion>`) | 0.16.0 / 0.5.1 |
 | `base64` (ZecProof encoding) | 0.23.1 |
+| [`zip311`](crates/zip311) (ours: ZIP 311 disclosures; Orchard circuit + RedPallas, see its SPEC.md) | 0.1.1 |
 | `nym-swizzle-zcash` (grid) | nymtech/nym `develop` @ `e416f724` |
 | `nym-socks5-client` | 1.1.88, built from nymtech/nym @ `e416f724` |
 | zcash-devtool (demo wallet) | zcash/zcash-devtool @ `0b3436b` (`--features regtest_support` for local runs) |
@@ -216,7 +219,7 @@ No code was copied from these projects; zecmix's README informed the Nym setup (
 
 ## Limitations
 
-See [PRIVACY.md](PRIVACY.md). In short: subtree-root arguments, whether a wallet wants transparent data, and transparent-address queries still reach the server (tree-state heights only to within 4 grid cells, among decoys; the shielded pool filter is normalised); the tip grid cell is partial; with `--direct` (opting out of the default Nym) the server sees your IP on both paths; Nym exits can degrade (Ghost tests and replaces them, can fall back to Tor for broadcasts, and fails closed meanwhile); a ZecProof's message is an unsigned label; ShadeCheck SC-002 (as implemented) flags every broadcast, so we don't claim to pass it; a PASS is never proof of anonymity.
+See [PRIVACY.md](PRIVACY.md). In short: subtree-root arguments, whether a wallet wants transparent data, and transparent-address queries still reach the server (tree-state heights only to within 4 grid cells, among decoys; the shielded pool filter is normalised); the tip grid cell is partial; with `--direct` (opting out of the default Nym) the server sees your IP on both paths; Nym exits can degrade (Ghost tests and replaces them, can fall back to Tor for broadcasts, and fails closed meanwhile); a ZecProof's message is an unsigned label (a ZIP 311 disclosure's is signed; ZIP 311 here covers Orchard/Ironwood spends and Orchard/Ironwood/Sapling outputs, not Sapling spends or transparent inputs); ShadeCheck SC-002 (as implemented) flags every broadcast, so we don't claim to pass it; a PASS is never proof of anonymity.
 
 ## Scripts
 

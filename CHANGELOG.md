@@ -1,5 +1,21 @@
 # Changelog
 
+## v0.2.2 (2026-11-11)
+
+- **ZIP 311 payment disclosures.** New crate [`zip311`](crates/zip311) (crates.io): the sender proves that
+  they controlled the spend authority of a transaction (a fresh Orchard action proof at the transaction's
+  anchor, plus a RedPallas signature over the disclosure) and reveals only the outputs they choose. Covers
+  Orchard/Ironwood spends and Orchard/Ironwood/Sapling outputs. ZIP 311 is a Sapling-only draft; the Orchard
+  construction and the `zpd1…` encoding are written up as a proposal in
+  [`crates/zip311/SPEC.md`](crates/zip311/SPEC.md).
+- `ghost proof verify` accepts `zpd1…` (JSON: `kind: "zip311"`, `spends`, `outputs`, `msg_signed: true`).
+- The release's `zcash-devtool` now carries [two patches](patches/zcash-devtool): `wallet disclose` (makes
+  the disclosure; keys stay in the wallet) and the identity file created 0600.
+- Real run: [`evidence/zip311.md`](evidence/zip311.md), tx 4d66c913… (3 s to create, 4 s to verify; tampering
+  rejected). It is also an offline test vector in the crate.
+- zip311 0.1.0 was yanked: for pre-NU6.2 Orchard bundles it would have used the insecure circuit for the new
+  proof. 0.1.1 always uses a fixed circuit.
+
 ## v0.2.1 (2026-11-11)
 
 - First run on a fresh install: if a Nym exit dies right as the gateway starts, `ghost up` now keeps trying its

@@ -36,6 +36,8 @@ MODE=nym WALLET_DIR=… IDENTITY=… TO_ADDRESS=utest1… ZCASH_DEVTOOL=… scri
 | `crates/ghost-transport` | direct TLS + Nym SOCKS5 connector, `public_ip`, generated protocol |
 | `crates/ghost-gateway` | tonic `CompactTxStreamer` server (all 21 RPCs) |
 | `crates/ghost-attacker` | linkage heuristics over an observer/event log |
+| `crates/zip311` | ZIP 311 payment disclosures (published on its own, version 0.1.x): `create` (wallet side, needs the spending key) / `verify` (no keys). SPEC.md = the Orchard construction + encoding. Proof tests: `cargo test -p zip311 --release`. |
+| `patches/zcash-devtool` | patches the release applies to zcash-devtool (identity 0600, `wallet disclose`) |
 | `crates/ghost-cli` | `ghost` binary: `up pay status verify ip doctor explain attack report dashboard mcp` |
 | `scripts/` | `nym_setup.sh`, `e2e_local.sh`, `e2e_testnet.sh`, `regtest_payment.sh`, `pipeline_check.py`, `gen_llms_full.sh` |
 | `evidence/` | committed real outputs (never edit by hand except clearly-labelled interpretation sections) |

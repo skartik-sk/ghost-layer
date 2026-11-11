@@ -11,6 +11,7 @@ Ghost Layer is a local gateway (`ghost`) between a Zcash wallet (zcash-devtool) 
 
 - "Send 0.001 TAZ to utest1… privately" → `ghost pay`
 - "Is my payment mined?" / "check this txid" → `ghost verify`
+- "Prove I paid X" → the user's wallet makes a ZIP 311 disclosure (`zcash-devtool wallet disclose --txid <txid> --msg <challenge>`; it needs their identity file, so ask them to run it); anyone checks it with `ghost --json proof verify zpd1…` (no keys)
 - "What can the server see about me?" → `ghost ip`, `ghost status`, `ghost attack`
 - "Is Ghost Layer working?" → `ghost doctor`
 

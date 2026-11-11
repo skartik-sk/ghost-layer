@@ -12,12 +12,12 @@ description = "Ghost Layer gateway: a local lightwalletd-compatible CompactTxStr
 readme = "README.md"
 
 [dependencies]
-ghost-transport = { package = "ghost-layer-transport", path = "../ghost-transport", version = "0.2.1" }
+ghost-transport = { package = "ghost-layer-transport", path = "../ghost-transport", version = "0.2.2" }
 tonic.workspace = true
 futures.workspace = true
 tracing.workspace = true
 anyhow.workspace = true
-ghost-core = { package = "ghost-layer-core", path = "../ghost-core", version = "0.2.1" }
+ghost-core = { package = "ghost-layer-core", path = "../ghost-core", version = "0.2.2" }
 tokio.workspace = true
 tokio-stream.workspace = true
 prost.workspace = true

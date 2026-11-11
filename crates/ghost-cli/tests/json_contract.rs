@@ -113,6 +113,22 @@ fn online_outputs_match_schemas() {
     check("proof-verify", &v);
     assert_eq!(v["valid"], false);
 
+    // ZIP 311 disclosure committed in evidence/zip311.md (real payment 4d66c913…).
+    let md = std::fs::read_to_string(root().join("evidence/zip311.md")).unwrap();
+    let pd = md.split_whitespace().filter(|w| w.starts_with("zpd1")).max_by_key(|w| w.len()).expect("disclosure in evidence");
+    let (code, v) = ghost(&home, &["proof", "verify", "--direct", pd]);
+    assert_eq!(code, 0, "{v}");
+    check("proof-verify", &v);
+    assert_eq!(v["kind"], "zip311");
+    assert_eq!(v["msg_signed"], true);
+    assert_eq!(v["height"], 4608562);
+    assert_eq!(v["outputs"][0]["value_zat"], 50000);
+    assert_eq!(v["spends"][0]["pool"], "ironwood");
+    let (code, v) = ghost(&home, &["proof", "verify", "--direct", "zpd1AAAA"]);
+    assert_eq!(code, 1);
+    check("proof-verify", &v);
+    assert_eq!(v["valid"], false);
+
     let (_, v) = ghost(&home, &["doctor", "--direct", "--listen", "127.0.0.1:19068"]);
     check("doctor", &v);
     let _ = std::fs::remove_dir_all(home);

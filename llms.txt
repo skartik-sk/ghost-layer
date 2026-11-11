@@ -17,6 +17,7 @@ The three leaks it fixes: (1) IP → Nym exits; (2) sync-then-send timing → ev
 - `ghost doctor` — health checks `{checks[]{name,ok,detail}}`
 - `ghost attack --events ~/.ghost-layer/upstream-events.jsonl` — attacker heuristics `{sends[]{linked, linked_by[]}, rate}`
 - `ghost report --attack --before b.jsonl --after a.jsonl --nym-events n.jsonl` — writes evidence/ATTACK_RESULTS.md
+- `ghost proof verify zpd1…` — ZIP 311 payment disclosure (made in the wallet: `zcash-devtool wallet disclose --txid <txid> --msg <challenge>`): proves the sender controlled the spend + the disclosed outputs; → `{valid, kind:"zip311", spends, outputs:[{recipient,value_zat,memo}], msg, msg_signed:true}`
 - `ghost proof create --ufvk-file sender.ufvk --txid <txid>` / `ghost proof verify zecproof1…` — ZecProof: prove one payment (only that output is revealed); verify → `{valid, recipient, value_zat, memo, height}`
 - `ghost explain` — plain-language explanation `{leaks[], not_hidden[]}`
 - `ghost dashboard` — live page on http://127.0.0.1:9070 (loopback only)
@@ -34,6 +35,7 @@ The three leaks it fixes: (1) IP → Nym exits; (2) sync-then-send timing → ev
 ## Evidence (real runs)
 
 - [evidence/ATTACK_RESULTS.md](evidence/ATTACK_RESULTS.md): linkage before/after (+ Nym on testnet)
+- [evidence/zip311.md](evidence/zip311.md): real ZIP 311 disclosure for testnet tx 4d66c913…, verified + tamper checks
 - [evidence/testnet_tx.md](evidence/testnet_tx.md): real testnet txids, explorer links, NU7 proof
 - [evidence/BEFORE_AFTER.md](evidence/BEFORE_AFTER.md): ShadeCheck strict results, reported as is
 - [evidence/mcp_demo.md](evidence/mcp_demo.md): a real MCP client calling `ghost mcp`

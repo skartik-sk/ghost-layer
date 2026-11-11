@@ -1,0 +1,311 @@
+From 0437b7304c3ab309a96a222c10c4958e825ad4ea Mon Sep 17 00:00:00 2001
+From: Singupalli Kartik <skartik1706@gmail.com>
+Date: Wed, 11 Nov 2026 21:12:42 +0530
+Subject: [PATCH] Add `wallet disclose`: ZIP 311 payment disclosures for
+ Ironwood spends
+MIME-Version: 1.0
+Content-Type: text/plain; charset=UTF-8
+Content-Transfer-Encoding: 8bit
+
+Creates a zpd1… string proving this wallet controlled the spend authority of a sent
+transaction (fresh Orchard action proof at the tx's anchor + signature), revealing only
+the chosen outputs. Uses the zip311 crate.
+---
+ Cargo.lock                      |  15 +++
+ Cargo.toml                      |   1 +
+ src/commands/wallet.rs          |   4 +
+ src/commands/wallet/disclose.rs | 202 ++++++++++++++++++++++++++++++++
+ src/main.rs                     |   1 +
+ 5 files changed, 223 insertions(+)
+ create mode 100644 src/commands/wallet/disclose.rs
+
+diff --git a/Cargo.lock b/Cargo.lock
+index 00cae0b..a96372d 100644
+--- a/Cargo.lock
++++ b/Cargo.lock
+@@ -9636,6 +9636,7 @@ dependencies = [
+  "zcash_protocol",
+  "zcash_script",
+  "zcash_transparent",
++ "zip311",
+  "zip32",
+  "zip321",
+ ]
+@@ -10064,6 +10065,20 @@ dependencies = [
+  "syn 3.0.9",
+ ]
+ 
++[[package]]
++name = "zip311"
++version = "0.1.1"
++source = "registry+https://github.com/rust-lang/crates.io-index"
++checksum = "73bef5676d419f72016c12928156728f6917fd2ef2e8b30337139f20deeb8e1b"
++dependencies = [
++ "base64 0.23.1",
++ "blake2b_simd",
++ "orchard",
++ "rand 0.10.3",
++ "sapling-crypto",
++ "zcash_note_encryption",
++]
++
+ [[package]]
+ name = "zip32"
+ version = "0.3.0"
+diff --git a/Cargo.toml b/Cargo.toml
+index 3aa6c5e..141f3e0 100644
+--- a/Cargo.toml
++++ b/Cargo.toml
+@@ -97,6 +97,7 @@ ur = { version = "0.5", optional = true }
+ 
+ # Tree exploration
+ incrementalmerkletree = "0.9"
++zip311 = { version = "0.1.1", default-features = false }
+ shardtree = "0.8"
+ 
+ # TUI
+diff --git a/src/commands/wallet.rs b/src/commands/wallet.rs
+index aba023e..dc48426 100644
+--- a/src/commands/wallet.rs
++++ b/src/commands/wallet.rs
+@@ -4,6 +4,7 @@ pub(crate) mod balance;
+ pub(crate) mod delete_account;
+ pub(crate) mod derive_address;
+ pub(crate) mod derive_path;
++pub(crate) mod disclose;
+ pub(crate) mod display_mnemonic;
+ pub(crate) mod enhance;
+ pub(crate) mod fan_out;
+@@ -108,6 +109,9 @@ pub(crate) enum Command {
+     /// Create a transaction fulfilling a payment request
+     Pay(pay::Command),
+ 
++    /// Prove a payment this wallet sent (ZIP 311 payment disclosure, Ironwood)
++    Disclose(disclose::Command),
++
+     /// Commands that operate directly on the note commitment trees
+     #[command(subcommand)]
+     Tree(tree::Command),
+diff --git a/src/commands/wallet/disclose.rs b/src/commands/wallet/disclose.rs
+new file mode 100644
+index 0000000..a403520
+--- /dev/null
++++ b/src/commands/wallet/disclose.rs
+@@ -0,0 +1,202 @@
++//! `wallet disclose`: create a ZIP 311 payment disclosure for a transaction this wallet sent.
++//!
++//! The disclosure proves that this wallet controlled the spend authority of the transaction
++//! (a fresh Orchard action proof + signature per spent Ironwood note) and reveals only the
++//! chosen outputs. It is printed as a `zpd1…` string that anyone can verify against the chain.
++use anyhow::anyhow;
++use clap::Args;
++use rand::{rand_core::UnwrapErr, rngs::SysRng};
++use secrecy::ExposeSecret;
++use uuid::Uuid;
++
++use orchard::keys::{Diversifier, FullViewingKey, Scope, SpendAuthorizingKey};
++use orchard::note::{NoteVersion, RandomSeed, Rho};
++use orchard::tree::MerklePath;
++use orchard::value::NoteValue;
++use orchard::{Anchor, Note};
++use zcash_client_backend::data_api::{Account, WalletCommitmentTrees, WalletRead};
++use zcash_client_sqlite::{WalletDb, error::SqliteClientError, util::SystemClock};
++use zcash_keys::keys::UnifiedSpendingKey;
++use zcash_primitives::transaction::TxId;
++use zcash_protocol::consensus::{BlockHeight, NetworkType, Parameters};
++
++use crate::{commands::select_account, config::WalletConfig, data::get_db_paths, error};
++
++// Options accepted for the `disclose` command
++#[derive(Debug, Args)]
++pub(crate) struct Command {
++    /// The UUID of the account that sent the transaction
++    account_id: Option<Uuid>,
++
++    /// age identity file to decrypt the mnemonic phrase with
++    #[arg(short, long)]
++    identity: String,
++
++    /// The transaction to disclose (as displayed, big-endian hex)
++    #[arg(long)]
++    txid: String,
++
++    /// A message to bind into the disclosure (e.g. the verifier's challenge)
++    #[arg(long, default_value = "")]
++    msg: String,
++
++    /// Ironwood action indices of outputs to disclose (default: every output this wallet sent to
++    /// someone else; change is never included)
++    #[arg(long = "output")]
++    outputs: Vec<u32>,
++}
++
++impl Command {
++    pub(crate) async fn run(self, wallet_dir: Option<String>) -> Result<(), anyhow::Error> {
++        let mut config = WalletConfig::read(wallet_dir.as_ref())?;
++        let params = config.network();
++        let coin_type = match params.network_type() {
++            NetworkType::Main => zip311::COIN_TYPE_MAINNET,
++            _ => zip311::COIN_TYPE_TESTNET,
++        };
++        let mut txid_bytes: [u8; 32] = hex::decode(self.txid.trim())
++            .ok()
++            .and_then(|b| b.try_into().ok())
++            .ok_or(anyhow!("invalid txid (expected 64 hex characters)"))?;
++        txid_bytes.reverse();
++        let txid = TxId::from_bytes(txid_bytes);
++
++        let (_, db_path) = get_db_paths(wallet_dir.as_ref());
++        let mut db = WalletDb::for_path(&db_path, params, SystemClock, UnwrapErr(SysRng))?;
++        let account = select_account(&db, self.account_id)?;
++        let derivation = account
++            .source()
++            .key_derivation()
++            .ok_or(anyhow!("view-only accounts cannot prove spend authority"))?;
++
++        let tx = db
++            .get_transaction(txid)?
++            .ok_or(anyhow!("transaction not found in this wallet"))?;
++        let height = db
++            .get_tx_height(txid)?
++            .ok_or(anyhow!("transaction is not mined yet; disclose it once it is"))?;
++        let ironwood = tx
++            .ironwood_bundle()
++            .ok_or(anyhow!("transaction has no Ironwood bundle (only Ironwood is supported)"))?;
++
++        let identities = age::IdentityFile::from_file(self.identity.clone())?.into_identities()?;
++        let seed = config
++            .decrypt_seed(identities.iter().map(|i| i.as_ref() as _))?
++            .ok_or(anyhow!("seed must be present to prove spend authority"))?;
++        let usk = UnifiedSpendingKey::from_seed(&params, seed.expose_secret(), derivation.account_index())
++            .map_err(error::Error::from)?;
++        // Ironwood notes are spent with the account's Orchard spending key.
++        let sk = usk.orchard();
++        let fvk = FullViewingKey::from(sk);
++        let ask = SpendAuthorizingKey::from(sk);
++
++        // Our spent notes: actions whose nullifier is one of our received notes'.
++        let conn = rusqlite::Connection::open_with_flags(&db_path, rusqlite::OpenFlags::SQLITE_OPEN_READ_ONLY)?;
++        let mut found = Vec::new();
++        for (i, action) in ironwood.actions().iter().enumerate() {
++            let row = conn.query_row(
++                "SELECT diversifier, value, rho, rseed, commitment_tree_position, recipient_key_scope
++                 FROM ironwood_received_notes WHERE nf = ?1",
++                [action.nullifier().to_bytes().to_vec()],
++                |r| {
++                    Ok((
++                        r.get::<_, Vec<u8>>(0)?,
++                        r.get::<_, i64>(1)?,
++                        r.get::<_, Vec<u8>>(2)?,
++                        r.get::<_, Vec<u8>>(3)?,
++                        r.get::<_, Option<i64>>(4)?,
++                        r.get::<_, Option<i64>>(5)?,
++                    ))
++                },
++            );
++            let (d, value, rho, rseed, pos, scope) = match row {
++                Ok(r) => r,
++                Err(rusqlite::Error::QueryReturnedNoRows) => continue,
++                Err(e) => return Err(e.into()),
++            };
++            let d = Diversifier::from_bytes(d.try_into().map_err(|_| anyhow!("bad diversifier"))?);
++            let scope = if scope == Some(1) { Scope::Internal } else { Scope::External };
++            let rho = Option::from(Rho::from_bytes(&rho.try_into().map_err(|_| anyhow!("bad rho"))?))
++                .ok_or(anyhow!("bad rho"))?;
++            let rseed = Option::from(RandomSeed::from_bytes(rseed.try_into().map_err(|_| anyhow!("bad rseed"))?, &rho))
++                .ok_or(anyhow!("bad rseed"))?;
++            let note: Note = Option::from(Note::from_parts(
++                fvk.address(d, scope),
++                NoteValue::from_raw(value as u64),
++                rho,
++                rseed,
++                NoteVersion::V3,
++            ))
++            .ok_or(anyhow!("cannot rebuild the spent note"))?;
++            if note.nullifier(&fvk) != *action.nullifier() {
++                continue;
++            }
++            let pos = pos.ok_or(anyhow!("spent note has no tree position"))?;
++            found.push((i as u32, note, pos as u64));
++        }
++        if found.is_empty() {
++            return Err(anyhow!("this account did not spend any Ironwood note in that transaction"));
++        }
++
++        // ZIP 311 proves spend authority at the transaction's own anchor: find the checkpoint whose
++        // root is that anchor (the wallet keeps the last 100 checkpoints, so disclose recent txs).
++        let checkpoints: Vec<u32> = conn
++            .prepare("SELECT checkpoint_id FROM ironwood_tree_checkpoints WHERE checkpoint_id < ?1 ORDER BY checkpoint_id DESC")?
++            .query_map([u32::from(height)], |r| r.get(0))?
++            .collect::<Result<_, _>>()?;
++        let anchor = *ironwood.anchor();
++        let mut spends = Vec::new();
++        for (index, note, pos) in found {
++            let path = db
++                .with_ironwood_tree_mut::<_, _, SqliteClientError>(|tree| {
++                    for &h in &checkpoints {
++                        let h = BlockHeight::from_u32(h);
++                        let Some(root) = tree.root_at_checkpoint_id(&h)? else { continue };
++                        if Anchor::from(root) != anchor {
++                            continue;
++                        }
++                        return Ok(tree
++                            .witness_at_checkpoint_id(incrementalmerkletree::Position::from(pos), &h)?
++                            .map(MerklePath::from));
++                    }
++                    Ok(None)
++                })?
++                .flatten()
++                .ok_or(anyhow!(
++                    "no witness at the transaction's anchor (it is older than the wallet's last 100 checkpoints)"
++                ))?;
++            spends.push(zip311::OrchardSpend {
++                pool: zip311::Pool::Ironwood,
++                index,
++                fvk: fvk.clone(),
++                ask: ask.clone(),
++                note,
++                merkle_path: path,
++            });
++        }
++
++        let data = zip311::TxData {
++            txid: *txid.as_ref(),
++            sapling: None,
++            orchard: None,
++            ironwood: Some(ironwood),
++            zip212: sapling::note_encryption::Zip212Enforcement::On,
++        };
++        let mut outputs = zip311::sent_orchard_outputs(&data, &fvk.to_ovk(Scope::External));
++        if !self.outputs.is_empty() {
++            outputs.retain(|o| self.outputs.contains(&o.index));
++            if outputs.len() != self.outputs.len() {
++                return Err(anyhow!("some --output indices are not outputs this wallet sent"));
++            }
++        }
++        eprintln!(
++            "Proving spend authority for {} action(s), disclosing {} output(s)...",
++            spends.len(),
++            outputs.len()
++        );
++        let pd = zip311::create(&data, coin_type, self.msg.into_bytes(), outputs, &spends, UnwrapErr(SysRng))
++            .map_err(|e| anyhow!("{e}"))?;
++        println!("{}", pd.encode());
++        Ok(())
++    }
++}
+diff --git a/src/main.rs b/src/main.rs
+index 8d75ad8..1235398 100644
+--- a/src/main.rs
++++ b/src/main.rs
+@@ -180,6 +180,7 @@ fn main() -> Result<(), anyhow::Error> {
+                 commands::wallet::Command::Shield(command) => command.run(wallet_dir).await,
+                 commands::wallet::Command::Propose(command) => command.run(wallet_dir).await,
+                 commands::wallet::Command::Pay(command) => command.run(wallet_dir).await,
++                commands::wallet::Command::Disclose(command) => command.run(wallet_dir).await,
+                 commands::wallet::Command::Send(command) => command.run(wallet_dir).await,
+                 commands::wallet::Command::FanOut(command) => command.run(wallet_dir).await,
+                 commands::wallet::Command::Tree(command) => match command {
+-- 
+2.49.0
+

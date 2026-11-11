@@ -1,0 +1,80 @@
+From 299cb8ac53e2799ff899dcd4e8bcb3984b828300 Mon Sep 17 00:00:00 2001
+From: Singupalli Kartik <kartik@onramp.in>
+Date: Wed, 11 Nov 2026 15:50:47 +0530
+Subject: [PATCH] Create generated age identity files with mode 0600
+
+wallet init, wallet restore-mnemonic and zip48 init write a newly generated age identity (the secret that
+decrypts the mnemonic) with File::create_new, i.e. mode 0666 & umask: 0644, world-readable, with the usual
+umask 022. Create them owner-only on Unix instead. Existing files are not touched.
+
+Verified: umask 022, wallet init -> 644 before, 600 after.
+---
+ src/commands/wallet/init.rs             | 10 ++++++++--
+ src/commands/wallet/restore_mnemonic.rs |  9 +++++++--
+ src/commands/zip48/init.rs              |  9 +++++++--
+ 3 files changed, 22 insertions(+), 6 deletions(-)
+
+diff --git a/src/commands/wallet/init.rs b/src/commands/wallet/init.rs
+index d8a0937..3d44e38 100644
+--- a/src/commands/wallet/init.rs
++++ b/src/commands/wallet/init.rs
+@@ -97,8 +97,14 @@ impl Command {
+             let identity = age::x25519::Identity::generate();
+             let recipient = identity.to_public();
+ 
+-            // Write it to the provided path so we have it for next time.
+-            let mut f = tokio::fs::File::create_new(opts.identity).await?;
++            // Write it to the provided path so we have it for next time. The file holds the secret key
++            // that decrypts the mnemonic, so on Unix create it readable by the owner only (0600)
++            // instead of inheriting the default 0666 & umask (usually 0644, world-readable).
++            let mut open = tokio::fs::OpenOptions::new();
++            open.write(true).create_new(true);
++            #[cfg(unix)]
++            open.mode(0o600);
++            let mut f = open.open(opts.identity).await?;
+             f.write_all(
+                 format!(
+                     "# created: {}\n",
+diff --git a/src/commands/wallet/restore_mnemonic.rs b/src/commands/wallet/restore_mnemonic.rs
+index d297692..87e5282 100644
+--- a/src/commands/wallet/restore_mnemonic.rs
++++ b/src/commands/wallet/restore_mnemonic.rs
+@@ -89,8 +89,13 @@ impl Command {
+             let identity = age::x25519::Identity::generate();
+             let recipient = identity.to_public();
+ 
+-            // Write it to the provided path so we have it for next time.
+-            let mut f = tokio::fs::File::create_new(opts.identity).await?;
++            // Write it to the provided path so we have it for next time, owner-only on Unix: the file
++            // holds the secret key that decrypts the mnemonic.
++            let mut open = tokio::fs::OpenOptions::new();
++            open.write(true).create_new(true);
++            #[cfg(unix)]
++            open.mode(0o600);
++            let mut f = open.open(opts.identity).await?;
+             f.write_all(
+                 format!(
+                     "# created: {}\n",
+diff --git a/src/commands/zip48/init.rs b/src/commands/zip48/init.rs
+index f478962..ebcdb83 100644
+--- a/src/commands/zip48/init.rs
++++ b/src/commands/zip48/init.rs
+@@ -41,8 +41,13 @@ impl Command {
+             let identity = age::x25519::Identity::generate();
+             let recipient = identity.to_public();
+ 
+-            // Write it to the provided path so we have it for next time.
+-            let mut f = fs::File::create_new(self.identity)?;
++            // Write it to the provided path so we have it for next time, owner-only on Unix: the file
++            // holds the secret key that decrypts the mnemonic.
++            let mut open = fs::OpenOptions::new();
++            open.write(true).create_new(true);
++            #[cfg(unix)]
++            std::os::unix::fs::OpenOptionsExt::mode(&mut open, 0o600);
++            let mut f = open.open(self.identity)?;
+             f.write_all(
+                 format!(
+                     "# created: {}\n",
+-- 
+2.49.0
+
