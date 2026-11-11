@@ -226,7 +226,7 @@ footer{border-top:1px solid var(--line);padding:64px 0 40px;color:var(--muted);f
 <div class="tile"><span>CRYPTO</span><b>librustzcash</b><p>NU7, Ironwood, ZIP 244</p></div>
 <div class="tile"><span>AGENTS</span><b>MCP (rmcp)</b><p>read-only tools by default</p></div>
 <div class="tile"><span>TESTER</span><b>ShadeCheck</b><p>independent before/after</p></div>
-<div class="tile"><span>PROOFS</span><b>ZecProof</b><p>prove one payment</p></div>
+<div class="tile"><span>PROOFS</span><b>ZIP 311</b><p>prove you paid, and that you sent it</p></div>
 </div>
 </div></section>
 
@@ -248,13 +248,14 @@ footer{border-top:1px solid var(--line);padding:64px 0 40px;color:var(--muted);f
 <div>
 <p class="label">Developers</p>
 <h2>Use the crates. Or let your agent.</h2>
-<p class="lede" style="margin-bottom:32px">Five crates on crates.io, a stable JSON contract tested against real output, and an MCP server.</p>
+<p class="lede" style="margin-bottom:32px">Six crates on crates.io, a stable JSON contract tested against real output, and an MCP server.</p>
 <div class="grid2">
 <a href="https://crates.io/crates/ghost-layer"><b>ghost-layer</b><p>the ghost CLI: pay, proof, dashboard, mcp</p></a>
 <a href="https://crates.io/crates/ghost-layer-core"><b>ghost-layer-core</b><p>grid planner, broadcast scheduler</p></a>
 <a href="https://crates.io/crates/ghost-layer-transport"><b>ghost-layer-transport</b><p>direct TLS and Nym SOCKS5</p></a>
 <a href="https://crates.io/crates/ghost-layer-gateway"><b>ghost-layer-gateway</b><p>lightwalletd-compatible gateway</p></a>
 <a href="https://crates.io/crates/ghost-layer-attacker"><b>ghost-layer-attacker</b><p>linkage heuristics, the attacker</p></a>
+<a href="https://crates.io/crates/zip311"><b>zip311</b><p>ZIP 311 payment disclosures, Orchard/Ironwood</p></a>
 <a href="https://github.com/skartik-sk/ghost-layer/blob/main/llms.txt"><b>llms.txt · AGENTS.md</b><p>current NU7 facts for coding agents</p></a>
 </div>
 </div>
@@ -267,9 +268,9 @@ footer{border-top:1px solid var(--line);padding:64px 0 40px;color:var(--muted);f
 <span class="c"># one command: sync, send, wait, verify</span>
 <span class="k">ghost pay</span> --to utest1… --amount 0.001 --memo <span class="s">"thanks"</span>
 
-<span class="c"># prove one payment, reveal nothing else</span>
-<span class="k">ghost proof create</span> --ufvk-file me.ufvk --txid …
-<span class="k">ghost proof verify</span> zecproof1…
+<span class="c"># prove you paid, and that you were the sender (ZIP 311)</span>
+<span class="k">zcash-devtool wallet disclose</span> -i w.age --txid … --msg <span class="s">"their challenge"</span>
+<span class="k">ghost proof verify</span> zpd1…
 
 <span class="c"># the app: Pay · Proof · what the server sees</span>
 <span class="k">ghost dashboard</span> --wallet ./w --identity ./w.age
