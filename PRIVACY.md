@@ -18,6 +18,7 @@
 | Light-wallet server | that a client syncs, and which grid cells it fetches (coarse, not zero; the tip cell is partial); tree-state / subtree-root heights (`GetTreeState`, `GetSubtreeRoots`: these can hint at the wallet birthday); the pool-type filter a wallet sends; transparent-address queries (`GetAddressUtxos`, `GetTaddress*`); the raw transaction at broadcast time; `GetTransaction` lookups. |
 | Server, **without Nym** | your IP on both paths (same IP → linkable; our attacker test reports this honestly as 5/5 linked). |
 | Nym | the exit knows *some* Nym user talks to the server; your ISP sees that you use Nym. |
+| Tor (broadcast fallback, only if a Tor SOCKS port is running and Nym can't reach the network) | the Tor exit sees *some* Tor user send one transaction to the server (a new circuit per transaction); your ISP sees that you use Tor. Sync stays on Nym, so sync and broadcast leave through two different anonymity networks. Never a direct connection; `--no-tor` disables it. |
 | Chain (everyone) | that a transaction exists, its fee and its expiry height. Note that the expiry height is set by the wallet when it builds the tx, *before* Ghost Layer's delay, so it can hint at the wallet's sync height (swizzle's wallet-side scheduler avoids this; a gateway can't). |
 | Local disk (`~/.ghost-layer`) | broadcast queue (txid, timing, status, privacy mode; raw bytes are wiped once final); a compact-block cache per server; `upstream-events.jsonl`, a record of what the server could observe (connection ids, transport, RPC method, time, block heights, broadcast payload size + SHA-256; **no addresses, keys, memos or raw txs**; disable with `ghost up --no-event-log`); `mcp-calls.jsonl` (tool name, recipient, amount for `ghost_pay`). Protect your machine; delete the directory to erase. The stderr log contains txids of your broadcasts (required for verifiability) but no addresses. |
 | `ghost dashboard` (Ghost Wallet) | Pay/Proof run `ghost pay` / `ghost proof` with the wallet, identity and UFVK file **you** fixed at startup (the page can't choose them); Pay/Proof/job requests need the **per-run token** printed only to your terminal (other local processes/users can't drive payments), a custom header (CSRF) and a loopback Host (DNS rebinding); amount cap enforced server-side. It serves **127.0.0.1 only** (refuses other listen addresses and non-loopback peers), embedded page, no external requests (strict CSP), GET-only. It shows the queue, event log analysis and exit IPs (your own IP masked). Anyone with access to your machine's loopback can view it while it runs. |
@@ -29,7 +30,7 @@
 
 ## 3. What must users trust?
 
-The light-wallet server for data integrity (Ghost Layer checks cells are contiguous and hash-linked, but cannot validate consensus); the Ghost Layer code; the wallet (keys never leave it); Nym, if enabled; their own machine and OS.
+The light-wallet server for data integrity (Ghost Layer checks cells are contiguous and hash-linked, but cannot validate consensus); the Ghost Layer code; the wallet (keys never leave it); Nym, if enabled (built in since v0.2: nym-sdk 1.21.6 with anonymous replies, so the exit never learns the client's Nym address); Tor, if running as the broadcast fallback; their own machine and OS.
 
 ## 4. What would we fix next?
 

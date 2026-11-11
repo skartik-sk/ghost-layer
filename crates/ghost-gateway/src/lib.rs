@@ -40,22 +40,37 @@ pub enum SendMode {
 /// Broadcasts each tx over a brand-new upstream connection, then drops it.
 pub struct FreshConnBroadcaster {
     pub transport: Transport,
+    /// A second anonymity network (Tor) used only when `transport` can't connect. Never direct.
+    pub fallback: Option<Transport>,
     pub events: Arc<EventLog>,
 }
 
 impl Broadcaster for FreshConnBroadcaster {
     async fn broadcast(&self, raw: Vec<u8>) -> anyhow::Result<Sent> {
-        let mut conn = self.transport.fresh().await?;
-        info!(target: "upstream", conn = conn.id, path = "broadcast", transport = self.transport.label,
+        match self.send_via(&self.transport, raw.clone()).await {
+            Err(e) if self.fallback.is_some() => {
+                let fb = self.fallback.as_ref().expect("checked");
+                warn!(target: "broadcast", "{} could not reach the network ({e:#}); trying {}", self.transport.label, fb.label);
+                self.send_via(fb, raw).await.map_err(|e2| anyhow::anyhow!("{e:#}; {}: {e2:#}", fb.label))
+            }
+            r => r,
+        }
+    }
+}
+
+impl FreshConnBroadcaster {
+    async fn send_via(&self, transport: &Transport, raw: Vec<u8>) -> anyhow::Result<Sent> {
+        let mut conn = transport.fresh().await?;
+        info!(target: "upstream", conn = conn.id, path = "broadcast", transport = transport.label,
             method = "SendTransaction", "fresh connection opened for this tx only");
-        self.events.record("SendTransaction", "request", conn.id, self.transport.label,
+        self.events.record("SendTransaction", "request", conn.id, transport.label,
             json!({"payload_size": raw.len(), "payload_sha256": hex::encode(Sha256::digest(&raw))}));
         let resp = conn.client.send_transaction(RawTransaction { data: raw, height: 0 }).await?.into_inner();
-        self.events.record("SendTransaction", "response", conn.id, self.transport.label, json!({"error_code": resp.error_code}));
+        self.events.record("SendTransaction", "response", conn.id, transport.label, json!({"error_code": resp.error_code}));
         Ok(Sent {
             conn_id: conn.id,
-            transport: self.transport.label.to_string(),
-            endpoint: self.transport.upstream.uri(),
+            transport: transport.label.to_string(),
+            endpoint: transport.upstream.uri(),
             error_code: resp.error_code,
             // Upstream text is untrusted: strip control chars (terminal escape injection).
             error_message: resp.error_message.chars().filter(|c| !c.is_control()).take(500).collect(),

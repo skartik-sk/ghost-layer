@@ -120,7 +120,10 @@ pub(crate) async fn ensure_gateway(listen: SocketAddr, upstream: &str, profile: 
     if !nym.on() {
         cmd.arg("--direct");
     } else {
-        cmd.args(["--nym-sync", &nym.nym_sync.to_string(), "--nym-broadcast", &nym.nym_broadcast.to_string()]);
+        cmd.args(["--nym-sync", &nym.nym_sync.to_string(), "--nym-broadcast", &nym.nym_broadcast.to_string(), "--tor", &nym.tor.to_string()]);
+        if nym.no_tor {
+            cmd.arg("--no-tor");
+        }
     }
     let errf = std::fs::File::create(&log).map_err(|e| Fail::runtime(format!("{}: {e}", log.display()), "check ~/.ghost-layer"))?;
     let child = cmd.stdout(Stdio::null()).stderr(errf).spawn().map_err(|e| Fail::runtime(e.to_string(), "run `ghost up` yourself"))?;

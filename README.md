@@ -69,6 +69,11 @@ and replaced automatically when they stop carrying traffic; if no working exit i
 rather than leak your IP. `ghost nym` keeps the two clients up for other wallets; `scripts/nym_setup.sh` still works
 with an external `nym-socks5-client`.
 
+**Tor fallback for broadcasts.** If a Tor SOCKS port is running (`brew install tor && tor`, `arti proxy`, or Tor
+Browser with `--tor 127.0.0.1:9150`), a broadcast that can't get through Nym goes out over Tor on a new circuit
+instead, never directly. Sync stays on Nym, so sync and broadcast leave through two different anonymity networks.
+`--no-tor` turns it off. Real runs: [`evidence/v0.2/`](evidence/v0.2/README.md).
+
 Watch it live: `target/release/ghost dashboard` → <http://127.0.0.1:9070> (what the server sees, queue countdowns, grid, attacker view). Real data from our testnet runs:
 
 ![Ghost Layer dashboard: the server sees two different Nym exits, every broadcast on a fresh connection after a random delay, all sync ranges grid-aligned, attacker: 0 % linked](evidence/app/dashboard.png)

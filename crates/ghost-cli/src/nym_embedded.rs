@@ -16,7 +16,7 @@ use std::time::Duration;
 
 use ghost_transport::proto::ChainSpec;
 use ghost_transport::{Transport, Upstream};
-use nym_sdk::mixnet::{NetworkRequesterSelector, Recipient, Socks5MixnetClient};
+use nym_sdk::mixnet::{MixnetClientBuilder, NetworkRequesterSelector, Recipient, Socks5, Socks5MixnetClient};
 use tokio::sync::Mutex;
 
 use crate::data_dir;
@@ -61,7 +61,7 @@ async fn start_one(idx: usize, bind: SocketAddr, target: &str, in_use: &InUse) -
         let mut avoid = bad.clone();
         avoid.extend(in_use.lock().await[1 - idx].clone());
         let r = pick(&avoid).await?;
-        let client = Socks5MixnetClient::connect_with(NetworkRequesterSelector::Exact(Box::new(r)), Some(bind)).await?;
+        let client = connect(r, bind).await?;
         if probe(bind, target).await {
             in_use.lock().await[idx] = Some(gateway_of(&r));
             record(IDS[idx], &r);
@@ -72,6 +72,16 @@ async fn start_one(idx: usize, bind: SocketAddr, target: &str, in_use: &InUse) -
         client.disconnect().await;
     }
     anyhow::bail!("4 Nym exits in a row did not carry traffic")
+}
+
+/// An ephemeral SOCKS5 client to requester `r`, with anonymous replies: the exit answers through reply SURBs
+/// and never learns this client's Nym address (same as nym-socks5-client `--use-reply-surbs true`;
+/// the SDK default is off).
+async fn connect(r: Recipient, bind: SocketAddr) -> anyhow::Result<Socks5MixnetClient> {
+    let mut cfg = Socks5::new(r.to_string());
+    cfg.bind_address = bind;
+    cfg.send_anonymously = true;
+    Ok(MixnetClientBuilder::new_ephemeral().socks5_config(cfg).build()?.connect_to_mixnet_via_socks5().await?)
 }
 
 /// A real request through this client: TLS to the upstream server and GetLatestBlock. (A bare SOCKS CONNECT is

@@ -24,6 +24,7 @@ webpki-roots.workspace = true
 hyper-util.workspace = true
 tower.workspace = true
 http.workspace = true
+rand.workspace = true
 
 [build-dependencies]
 tonic-prost-build.workspace = true

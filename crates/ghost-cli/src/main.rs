@@ -4,7 +4,6 @@
 use std::net::SocketAddr;
 use std::collections::BTreeMap;
 use std::path::PathBuf;
-use std::process::ExitCode;
 use std::sync::Arc;
 
 use ghost_core::broadcast::{Policy, Queue, Scheduler};
@@ -183,9 +182,24 @@ pub(crate) struct NymArgs {
     /// Nym SOCKS5 client used for BROADCAST (must be a different client/exit than sync)
     #[arg(long, default_value = "127.0.0.1:1081")]
     nym_broadcast: SocketAddr,
+    /// Tor SOCKS5 port used to BROADCAST when Nym can't reach the network (a new circuit per tx; never direct).
+    /// Used only if something is listening there (`tor`, `arti proxy`, or Tor Browser on 9150).
+    #[arg(long, default_value = "127.0.0.1:9050")]
+    tor: SocketAddr,
+    /// Never use Tor, even as the broadcast fallback
+    #[arg(long)]
+    no_tor: bool,
 }
 
 impl NymArgs {
+    /// The Tor broadcast fallback, if allowed and a Tor SOCKS port is actually listening.
+    async fn tor_fallback(&self, bcast: Upstream) -> Option<Transport> {
+        if !self.on() || self.no_tor || tokio::net::TcpStream::connect(self.tor).await.is_err() {
+            return None;
+        }
+        Some(Transport::tor(bcast, "tor-broadcast", self.tor))
+    }
+
     /// Nym is on unless `--direct` was given.
     pub(crate) fn on(&self) -> bool {
         !self.direct
@@ -260,7 +274,7 @@ pub fn data_dir() -> PathBuf {
         .unwrap_or_else(|| PathBuf::from(std::env::var_os("HOME").unwrap_or_default()).join(".ghost-layer"))
 }
 
-fn main() -> ExitCode {
+fn main() {
     let cli = Cli::parse();
     // Built-in Nym logs a WARN per gateway bandwidth top-up and an ERROR for every local port check: keep those
     // out of the default output (RUST_LOG still overrides everything).
@@ -280,17 +294,24 @@ fn main() -> ExitCode {
 
     let rt = tokio::runtime::Runtime::new().expect("tokio runtime");
     let json = cli.json;
-    match rt.block_on(run(cli)) {
-        Ok(code) => ExitCode::from(code),
+    let code = match rt.block_on(run(cli)) {
+        Ok(code) => code,
         Err(f) => {
             if json {
                 println!("{}", json!({"schema_version": 1, "ok": false, "error": f.msg, "hint": f.hint}));
             } else {
                 eprintln!("❌ {}\n   → {}", f.msg, f.hint);
             }
-            ExitCode::from(f.code)
+            f.code
         }
-    }
+    };
+    // Exit now instead of tearing the runtime down: the built-in Nym client (nym-socks5-client-core 1.21.6)
+    // panics when its tasks are dropped mid-shutdown. Nothing is lost: the event log and SQLite queue are
+    // written through on every record.
+    use std::io::Write;
+    let _ = std::io::stdout().flush();
+    let _ = std::io::stderr().flush();
+    std::process::exit(i32::from(code))
 }
 
 async fn run(cli: Cli) -> Result<u8, Fail> {
@@ -358,7 +379,8 @@ async fn up(a: UpArgs, json: bool) -> Result<u8, Fail> {
         let p = a.event_log.clone().unwrap_or_else(|| data_dir().join("upstream-events.jsonl"));
         EventLog::open(&p).map_err(|e| Fail::runtime(format!("cannot open event log {}: {e:#}", p.display()), "pass --event-log <path> or --no-event-log"))?
     });
-    let broadcaster = FreshConnBroadcaster { transport: bcast, events: events.clone() };
+    let fallback = a.nym.tor_fallback(bcast_upstream.clone()).await;
+    let broadcaster = FreshConnBroadcaster { transport: bcast, fallback: fallback.clone(), events: events.clone() };
     let scheduler = Scheduler::new(open_queue()?, policy, broadcaster, if a.nym.on() { "nym" } else { "direct" });
     // One cache per upstream server: blocks from different chains must never mix.
     let cache_name = format!("blocks-{}-{}.sqlite", upstream.host.replace(|c: char| !c.is_ascii_alphanumeric(), "_"), upstream.port);
@@ -373,7 +395,7 @@ async fn up(a: UpArgs, json: bool) -> Result<u8, Fail> {
 
     if json {
         println!("{}", json!({"schema_version": 1, "ok": true, "listen": listen.to_string(), "sync_upstream": upstream.uri(),
-            "broadcast_upstream": bcast_upstream.uri(), "nym": a.nym.on(), "profile": a.profile,
+            "broadcast_upstream": bcast_upstream.uri(), "nym": a.nym.on(), "tor_fallback": fallback.as_ref().and_then(|t| t.socks), "profile": a.profile,
             "policy": policy, "send_mode": a.send_mode, "resumed_pending": resumed, "held_nym_only": held}));
     } else {
         println!("👻 Ghost Layer up on {listen}");
@@ -388,6 +410,11 @@ async fn up(a: UpArgs, json: bool) -> Result<u8, Fail> {
         println!("   ✅ wallet headers stripped");
         if a.nym.on() {
             println!("   ✅ Nym mixnet: sync via {} / broadcast via {} (different exits; fail closed)", a.nym.nym_sync, a.nym.nym_broadcast);
+            match &fallback {
+                Some(t) => println!("   ✅ Tor fallback for broadcasts via {} (new circuit per tx; never direct)", t.socks.map(|s| s.to_string()).unwrap_or_default()),
+                None if !a.nym.no_tor => println!("   ·  no Tor on {}: if Nym exits fail, broadcasts wait and retry (start `tor` to add a fallback)", a.nym.tor),
+                None => {}
+            }
         } else {
             println!("   ⚠️  --direct: your IP is visible to the server on both paths (drop --direct to use Nym)");
         }

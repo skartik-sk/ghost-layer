@@ -75,18 +75,26 @@ pub struct Conn {
 pub struct Transport {
     pub upstream: Upstream,
     pub label: &'static str,
-    /// Nym SOCKS5 client to tunnel through. When set there is no code path to a direct
-    /// connection: if the Nym client is down, the call fails (fail closed).
+    /// SOCKS5 proxy (a Nym client or Tor) to tunnel through. When set there is no code path to a
+    /// direct connection: if the proxy is down, the call fails (fail closed).
     pub socks: Option<SocketAddr>,
+    /// Tor stream isolation: send random SOCKS credentials so every connection gets its own
+    /// circuit (Tor's IsolateSOCKSAuth). Not used for Nym clients.
+    pub isolate: bool,
 }
 
 impl Transport {
     pub fn direct(upstream: Upstream, label: &'static str) -> Self {
-        Self { upstream, label, socks: None }
+        Self { upstream, label, socks: None, isolate: false }
     }
 
     pub fn nym(upstream: Upstream, label: &'static str, socks: SocketAddr) -> Self {
-        Self { upstream, label, socks: Some(socks) }
+        Self { upstream, label, socks: Some(socks), isolate: false }
+    }
+
+    /// Through a Tor SOCKS5 port (e.g. 127.0.0.1:9050), a new circuit for every connection.
+    pub fn tor(upstream: Upstream, label: &'static str, socks: SocketAddr) -> Self {
+        Self { upstream, label, socks: Some(socks), isolate: true }
     }
 
     /// Opens a brand-new connection (new TCP or SOCKS5 stream + TLS + HTTP/2). Never pooled.
@@ -97,9 +105,9 @@ impl Transport {
             Some(proxy) => {
                 // Mixnet setup is slow; give it longer than a direct connect.
                 let ep = ep.connect_timeout(Duration::from_secs(120));
-                ep.connect_with_connector(SocksConnector { proxy })
+                ep.connect_with_connector(SocksConnector { proxy, isolate: self.isolate })
                     .await
-                    .map_err(|e| anyhow::anyhow!("via Nym SOCKS5 {proxy} (fail-closed, no direct fallback): {e}"))?
+                    .map_err(|e| anyhow::anyhow!("via {} SOCKS5 {proxy} (fail-closed, no direct fallback): {e}", self.label))?
             }
         };
         let id = CONN_SEQ.fetch_add(1, Ordering::Relaxed);
@@ -112,6 +120,7 @@ impl Transport {
 #[derive(Clone, Copy, Debug)]
 struct SocksConnector {
     proxy: SocketAddr,
+    isolate: bool,
 }
 
 type BoxErr = Box<dyn std::error::Error + Send + Sync>;
@@ -126,11 +135,17 @@ impl tower::Service<http::Uri> for SocksConnector {
     }
 
     fn call(&mut self, uri: http::Uri) -> Self::Future {
-        let proxy = self.proxy;
+        let (proxy, isolate) = (self.proxy, self.isolate);
         Box::pin(async move {
             let host = uri.host().ok_or("uri without host")?.to_string();
             let port = uri.port_u16().unwrap_or(443);
-            let s = Socks5Stream::connect(proxy, (host.as_str(), port)).await?;
+            let s = if isolate {
+                // Fresh random credentials = a circuit no other connection uses.
+                let user = format!("ghost-{:016x}", rand::random::<u64>());
+                Socks5Stream::connect_with_password(proxy, (host.as_str(), port), &user, "x").await?
+            } else {
+                Socks5Stream::connect(proxy, (host.as_str(), port)).await?
+            };
             Ok(TokioIo::new(s.into_inner()))
         })
     }
