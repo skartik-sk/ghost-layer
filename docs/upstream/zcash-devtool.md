@@ -2,7 +2,7 @@
 
 **Title:** `wallet init`: create the generated age identity with mode 0600
 
-**Status:** patch ready on a local branch (`fix/identity-file-mode`), not opened yet.
+**Status:** patch committed on a local branch (`fix/identity-file-mode`, commit `299cb8a`), not opened yet. Verified with umask 022: `wallet init` creates the identity 644 before, 600 after.
 
 ## Problem
 
