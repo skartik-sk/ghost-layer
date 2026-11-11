@@ -1,5 +1,7 @@
 # 👻 Ghost Layer
 
+[crates.io: `ghost-layer`](https://crates.io/crates/ghost-layer) · `ghost-layer-core` · `ghost-layer-transport` · `ghost-layer-gateway` · `ghost-layer-attacker`
+
 **Everyone hid your IP. Nobody stopped your payment from being linked to you. Ghost Layer does, and an independent tool and our own attacker test measure it.**
 
 Built for Free Society Hack, Mumbai (Privacy track, Zcash), 4 Nov 2026. Zcash **testnet**, NU7 (branch `0x77190AD9`), Ironwood pool.
@@ -23,6 +25,12 @@ Ghost Layer is a small local gateway between any lightwalletd-compatible wallet 
 | 3 | **Grid-aligned sync:** upstream only ever sees whole 1152-block grid cells, using **Nym's network-wide `nym-swizzle-zcash` rule**; the wallet still gets exactly what it asked for | 📚 range fingerprint |
 | 4 | **Nym mixnet transport, on by default:** two `nym-socks5-client`s with different random exits, sync on one and broadcast on the other, **fail closed** (`--direct` opts out) | 🧑 IP |
 
+## Why this is needed (sources)
+
+- **The leak is real and measured by an independent tester.** ShadeCheck's README reports that an *unmodified Zingolib 7.0.0* wallet on Zebra 7.0.0 / Zaino 0.10.1 "sent a shielded payment … The separate test recorded 1,009 events and **two HIGH SC-002 findings**" ([ShadeCheck README](https://github.com/0xaje/ShadeCheck-)).
+- **Hiding the IP doesn't fix it.** Nym's `nym-swizzle-zcash` README on resume-point chaining and sync-then-send: "Both leaks survive any mixnet, VPN, or Tor circuit, because they live in the application's query pattern" ([nym-swizzle-zcash](https://github.com/nymtech/nym/tree/develop/sdk/rust/nym-swizzle-zcash)).
+- **Nobody had shipped the fix.** zecmix's README lists as *future plans*: "`--split` mode: send `SendTransaction` over a separate connection and identity from the sync session, so the server cannot link a broadcast to the wallet that synced" and "Optional random delay before broadcast" ([zecmix, Future plans](https://github.com/apeirs/zecmix#future-plans)). Ghost Layer ships both, plus Nym's grid rule, and measures the result.
+
 ## Evidence (real, committed, reproducible)
 
 | What | Result | File |
@@ -41,20 +49,30 @@ Ghost Layer is a small local gateway between any lightwalletd-compatible wallet 
 | MCP server | a real MCP client (Claude Code) calls `ghost_status` + `ghost_verify` and answers from real data; `ghost_pay` caps refuse over-limit/mainnet | [`evidence/mcp_demo.md`](evidence/mcp_demo.md) |
 | **Real testnet payments** | before (direct): [`4d8f96ec…126b4970`](https://testnet.zcashexplorer.app/transactions/4d8f96ec56cd36871d6611e8fbe72cfc37cd7e9730d32cafeb2992fa126b4970), mined at 4582106 · **after (Ghost Layer + Nym)**: [`09f0f0b0…2bd3ce69`](https://testnet.zcashexplorer.app/transactions/09f0f0b01942a658197f65563a977c66fc19f8823268b0e547470e022bd3ce69), mined at 4582118: sync via one Nym exit, broadcast on a fresh connection via another after a 16.3 s random delay | [`evidence/testnet_tx.md`](evidence/testnet_tx.md) |
 
-## Quickstart: one command
+## Quickstart: three commands
 
 ```bash
-cargo build --release                       # Rust ≥ 1.85 + protoc → target/release/ghost
-                                            # (crates.io-ready: `cargo publish --workspace --dry-run` passes; see AGENTS.md)
-NYM_SOCKS5=/path/to/nym-socks5-client scripts/nym_setup.sh up   # optional: Nym (build from github.com/nymtech/nym)
+# 1. install: prebuilt ghost + zcash-devtool, SHA-256 checked (macOS arm64/x86_64, Linux x86_64; from v0.2.0)
+curl -fsSL https://github.com/skartik-sk/ghost-layer/releases/latest/download/install.sh | sh
+#    or from source: cargo install --locked ghost-layer   (needs Rust ≥ 1.85 + protoc)
 
-# a zcash-devtool testnet wallet (github.com/zcash/zcash-devtool); keys stay in it
-zcash-devtool wallet -w ./w init --name demo -i ./w.age -n test -s testnet.zec.rocks:443 --birthday <recent height>
+# 2. one-time setup: creates a testnet wallet THROUGH Ghost + Nym and makes it the default
+ghost init                       # prints your address and a faucet command
 
-# send privately: starts the gateway if needed, syncs through it, sends (live random-delay countdown),
-# broadcasts on a fresh connection via a separate Nym exit, waits until mined, prints explorer links
-target/release/ghost pay --wallet ./w --identity ./w.age --to utest1… --amount 0.001
+# 3. pay privately: starts Nym (built in) and the gateway, syncs grid-aligned, holds the tx for a
+#    random delay, broadcasts on a fresh connection via a different Nym exit, waits until mined
+ghost pay --to utest1… --amount 0.001
 ```
+
+Nym runs **inside `ghost`** (nym-sdk): no separate client to build. Exits are tested with a real request before use
+and replaced automatically when they stop carrying traffic; if no working exit is available, Ghost refuses to send
+rather than leak your IP. `ghost nym` keeps the two clients up for other wallets; `scripts/nym_setup.sh` still works
+with an external `nym-socks5-client`.
+
+**Tor fallback for broadcasts.** If a Tor SOCKS port is running (`brew install tor && tor`, `arti proxy`, or Tor
+Browser with `--tor 127.0.0.1:9150`), a broadcast that can't get through Nym goes out over Tor on a new circuit
+instead, never directly. Sync stays on Nym, so sync and broadcast leave through two different anonymity networks.
+`--no-tor` turns it off. Real runs: [`evidence/v0.2/`](evidence/v0.2/README.md).
 
 Watch it live: `target/release/ghost dashboard` → <http://127.0.0.1:9070> (what the server sees, queue countdowns, grid, attacker view). Real data from our testnet runs:
 
@@ -77,9 +95,11 @@ All commands accept `--json`. Exit codes: `0` ok, `1` runtime failure (or "not m
 
 | Command | Purpose |
 |---|---|
+| `ghost init` | first run: testnet wallet created through Ghost + Nym; saved as the default for pay / dashboard / mcp |
 | `ghost pay` | one-command private payment: gateway → sync → send (random delay, fresh connection) → mined → explorer links |
 | `ghost proof create / verify` | **ZecProof**: prove ONE payment you sent (`zecproof1…`), revealing only that output; anyone can verify it against the chain |
-| `ghost dashboard` | **Ghost Wallet** on `127.0.0.1:9070` (loopback only): Pay · Proof · Live (what the server sees). Pay/Proof need `--wallet --identity --ufvk-file` |
+| `ghost dashboard` | **Ghost Wallet** on `127.0.0.1:9070` (loopback only): Pay · Proof · Live (what the server sees). Uses the `ghost init` wallet (or `--wallet --identity --ufvk-file`) |
+| `ghost nym` | run the built-in Nym clients (sync `:1080`, broadcast `:1081`, different exits, self-healing) until Ctrl-C |
 | `ghost mcp` | MCP server (stdio) for AI agents: read-only tools; `ghost_pay` only with `--allow-pay` + caps |
 | `ghost up` | gateway on `127.0.0.1:9067` (loopback only unless `--allow-remote`); `--broadcast-server` to broadcast via a different server than you sync from |
 | `ghost doctor` | upstream reachable, chain = test, NU branch id, tip, TLS, port, storage; both Nym clients + exit IPs, upstream **only via Nym** (default) |
@@ -196,7 +216,7 @@ No code was copied from these projects; zecmix's README informed the Nym setup (
 
 ## Limitations
 
-See [PRIVACY.md](PRIVACY.md). In short: tree-state/subtree heights, the pool-type filter and transparent-address queries still reach the server; the tip grid cell is partial; with `--direct` (opting out of the default Nym) the server sees your IP on both paths; Nym exits can degrade (re-init picks fresh ones; Ghost fails closed meanwhile); a ZecProof's message is an unsigned label; ShadeCheck SC-002 (as implemented) flags every broadcast, so we don't claim to pass it; a PASS is never proof of anonymity.
+See [PRIVACY.md](PRIVACY.md). In short: subtree-root arguments, whether a wallet wants transparent data, and transparent-address queries still reach the server (tree-state heights only to within 4 grid cells, among decoys; the shielded pool filter is normalised); the tip grid cell is partial; with `--direct` (opting out of the default Nym) the server sees your IP on both paths; Nym exits can degrade (Ghost tests and replaces them, can fall back to Tor for broadcasts, and fails closed meanwhile); a ZecProof's message is an unsigned label; ShadeCheck SC-002 (as implemented) flags every broadcast, so we don't claim to pass it; a PASS is never proof of anonymity.
 
 ## Scripts
 

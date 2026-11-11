@@ -8,7 +8,8 @@ The three leaks it fixes: (1) IP → Nym exits; (2) sync-then-send timing → ev
 
 ## Commands (all accept `--json`; exit 0 ok, 1 runtime, 2 usage, 3 tx rejected)
 
-- `ghost pay --wallet ./w --identity ./w.age --to utest1… --amount 0.001` — one-command private payment; waits until mined. JSON: `{txid, height, confirmations, delay_s, broadcast_conn, transport, explorer[]}`
+- `ghost init` — first run: creates a testnet wallet through Ghost (Nym) and makes it the default. JSON: `{address, wallet, identity, ufvk_file, config}`
+- `ghost pay --to utest1… --amount 0.001` — one-command private payment (uses the `ghost init` wallet, or `--wallet ./w --identity ./w.age`); waits until mined. Nym is built in; with a Tor SOCKS port running, a broadcast Nym can't deliver goes over Tor (never direct). JSON: `{txid, height, confirmations, delay_s, broadcast_conn, transport, explorer[]}`
 - `ghost up --profile demo` — gateway on 127.0.0.1:9067; point the wallet at it
 - `ghost status` — broadcast queue `{broadcasts[]{row{txid,status,…}, delay_s, explorer[]}}`
 - `ghost verify 09f0f0b01942a658197f65563a977c66fc19f8823268b0e547470e022bd3ce69` — `{state, height, confirmations, explorer[]}`

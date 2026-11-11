@@ -8,7 +8,8 @@ The three leaks it fixes: (1) IP → Nym exits; (2) sync-then-send timing → ev
 
 ## Commands (all accept `--json`; exit 0 ok, 1 runtime, 2 usage, 3 tx rejected)
 
-- `ghost pay --wallet ./w --identity ./w.age --to utest1… --amount 0.001` — one-command private payment; waits until mined. JSON: `{txid, height, confirmations, delay_s, broadcast_conn, transport, explorer[]}`
+- `ghost init` — first run: creates a testnet wallet through Ghost (Nym) and makes it the default. JSON: `{address, wallet, identity, ufvk_file, config}`
+- `ghost pay --to utest1… --amount 0.001` — one-command private payment (uses the `ghost init` wallet, or `--wallet ./w --identity ./w.age`); waits until mined. Nym is built in; with a Tor SOCKS port running, a broadcast Nym can't deliver goes over Tor (never direct). JSON: `{txid, height, confirmations, delay_s, broadcast_conn, transport, explorer[]}`
 - `ghost up --profile demo` — gateway on 127.0.0.1:9067; point the wallet at it
 - `ghost status` — broadcast queue `{broadcasts[]{row{txid,status,…}, delay_s, explorer[]}}`
 - `ghost verify 09f0f0b01942a658197f65563a977c66fc19f8823268b0e547470e022bd3ce69` — `{state, height, confirmations, explorer[]}`
@@ -47,11 +48,13 @@ Ghost Layer: unlink your Zcash payments from your wallet sync
 Usage: ghost [OPTIONS] <COMMAND>
 
 Commands:
+  init       First run: create a testnet wallet through Ghost (over Nym) and save it as the default for pay/dashboard/mcp
   up         Start the gateway; point your wallet at 127.0.0.1:9067
   pay        Send a private payment in one command: gateway → sync → send (random delay, fresh connection) → mined
   dashboard  Live local web page: what the server sees, queue countdowns, grid, attacker view (127.0.0.1:9070)
   mcp        MCP server (stdio) for AI agents: read-only tools; ghost_pay only with --allow-pay + caps
   proof      ZecProof: prove ONE payment you sent (create) or check a proof (verify)
+  nym        Run the two Nym clients (sync :1080, broadcast :1081, different exits) until Ctrl-C, for other wallets or long sessions. `ghost up` / `pay` / `init` start them by themselves when nothing is running
   explain    Plain-language explanation of the three leaks and what Ghost Layer closes
   attack     Linkage heuristics over an observer log (ShadeCheck events.jsonl) — the attacker's view
   report     Before/after reports: ShadeCheck (--before/--after dirs) or attacker (--attack with events files)
@@ -69,16 +72,40 @@ Options:
   -V, --version  Print version
 ```
 
+## ghost init
+
+```
+First run: create a testnet wallet through Ghost (over Nym) and save it as the default for pay/dashboard/mcp
+
+Usage: ghost init [OPTIONS]
+
+Options:
+      --dir <DIR>                      Wallet directory to create (default ~/.ghost-layer/wallet)
+      --json                           Machine-readable JSON output
+      --name <NAME>                    Account name [default: ghost]
+  -v, --verbose                        More logging (upstream request log)
+  -q, --quiet                          Only errors
+      --server <SERVER>                Upstream lightwalletd server [default: testnet.zec.rocks:443]
+      --listen <LISTEN>                [default: 127.0.0.1:9067]
+      --devtool <DEVTOOL>              zcash-devtool binary (default: $ZCASH_DEVTOOL, next to ghost, or on PATH)
+      --direct                         Opt OUT of Nym: connect directly (the server then sees your IP on both paths). Default: sync and broadcast go through two Nym SOCKS5 clients with different exits, fail closed
+      --nym-sync <NYM_SYNC>            Nym SOCKS5 client used for SYNC [default: 127.0.0.1:1080]
+      --nym-broadcast <NYM_BROADCAST>  Nym SOCKS5 client used for BROADCAST (must be a different client/exit than sync) [default: 127.0.0.1:1081]
+      --tor <TOR>                      Tor SOCKS5 port used to BROADCAST when Nym can't reach the network (a new circuit per tx; never direct). Used only if something is listening there (`tor`, `arti proxy`, or Tor Browser on 9150) [default: 127.0.0.1:9050]
+      --no-tor                         Never use Tor, even as the broadcast fallback
+  -h, --help                           Print help
+```
+
 ## ghost pay
 
 ```
 Send a private payment in one command: gateway → sync → send (random delay, fresh connection) → mined
 
-Usage: ghost pay [OPTIONS] --wallet <WALLET> --identity <IDENTITY> --to <TO> --amount <AMOUNT>
+Usage: ghost pay [OPTIONS] --to <TO> --amount <AMOUNT>
 
 Options:
       --json                           Machine-readable JSON output
-      --wallet <WALLET>                zcash-devtool wallet directory
+      --wallet <WALLET>                zcash-devtool wallet directory (default: the one `ghost init` created)
       --identity <IDENTITY>            age identity file of that wallet (only its path is passed to zcash-devtool; Ghost never reads it)
   -v, --verbose                        More logging (upstream request log)
   -q, --quiet                          Only errors
@@ -88,11 +115,13 @@ Options:
       --server <SERVER>                Upstream lightwalletd server (used only if Ghost has to start the gateway) [default: testnet.zec.rocks:443]
       --listen <LISTEN>                [default: 127.0.0.1:9067]
       --profile <PROFILE>              Broadcast delay profile if Ghost starts the gateway [default: demo] [possible values: demo, privacy]
-      --devtool <DEVTOOL>              zcash-devtool binary (default: $ZCASH_DEVTOOL or `zcash-devtool` on PATH)
+      --devtool <DEVTOOL>              zcash-devtool binary (default: $ZCASH_DEVTOOL, the config, next to ghost, or on PATH)
       --mine-timeout <MINE_TIMEOUT>    Give up waiting for the block after this many seconds [default: 900]
       --direct                         Opt OUT of Nym: connect directly (the server then sees your IP on both paths). Default: sync and broadcast go through two Nym SOCKS5 clients with different exits, fail closed
       --nym-sync <NYM_SYNC>            Nym SOCKS5 client used for SYNC [default: 127.0.0.1:1080]
       --nym-broadcast <NYM_BROADCAST>  Nym SOCKS5 client used for BROADCAST (must be a different client/exit than sync) [default: 127.0.0.1:1081]
+      --tor <TOR>                      Tor SOCKS5 port used to BROADCAST when Nym can't reach the network (a new circuit per tx; never direct). Used only if something is listening there (`tor`, `arti proxy`, or Tor Browser on 9150) [default: 127.0.0.1:9050]
+      --no-tor                         Never use Tor, even as the broadcast fallback
   -h, --help                           Print help
 ```
 
@@ -128,12 +157,35 @@ Options:
           Nym SOCKS5 client used for SYNC [default: 127.0.0.1:1080]
       --nym-broadcast <NYM_BROADCAST>
           Nym SOCKS5 client used for BROADCAST (must be a different client/exit than sync) [default: 127.0.0.1:1081]
+      --tor <TOR>
+          Tor SOCKS5 port used to BROADCAST when Nym can't reach the network (a new circuit per tx; never direct). Used only if something is listening there (`tor`, `arti proxy`, or Tor Browser on 9150) [default: 127.0.0.1:9050]
+      --no-tor
+          Never use Tor, even as the broadcast fallback
       --event-log <EVENT_LOG>
           Record what the server can observe (upstream requests: connection, method, time, heights) to this JSONL file; read by `ghost attack` and `ghost dashboard`. Default: ~/.ghost-layer/upstream-events.jsonl
       --no-event-log
           Don't record the upstream event log
   -h, --help
           Print help
+```
+
+## ghost nym
+
+```
+Run the two Nym clients (sync :1080, broadcast :1081, different exits) until Ctrl-C, for other wallets or long sessions. `ghost up` / `pay` / `init` start them by themselves when nothing is running
+
+Usage: ghost nym [OPTIONS]
+
+Options:
+      --direct                         Opt OUT of Nym: connect directly (the server then sees your IP on both paths). Default: sync and broadcast go through two Nym SOCKS5 clients with different exits, fail closed
+      --json                           Machine-readable JSON output
+  -v, --verbose                        More logging (upstream request log)
+      --nym-sync <NYM_SYNC>            Nym SOCKS5 client used for SYNC [default: 127.0.0.1:1080]
+  -q, --quiet                          Only errors
+      --nym-broadcast <NYM_BROADCAST>  Nym SOCKS5 client used for BROADCAST (must be a different client/exit than sync) [default: 127.0.0.1:1081]
+      --tor <TOR>                      Tor SOCKS5 port used to BROADCAST when Nym can't reach the network (a new circuit per tx; never direct). Used only if something is listening there (`tor`, `arti proxy`, or Tor Browser on 9150) [default: 127.0.0.1:9050]
+      --no-tor                         Never use Tor, even as the broadcast fallback
+  -h, --help                           Print help
 ```
 
 ## ghost status
@@ -170,6 +222,8 @@ Options:
       --direct                         Opt OUT of Nym: connect directly (the server then sees your IP on both paths). Default: sync and broadcast go through two Nym SOCKS5 clients with different exits, fail closed
       --nym-sync <NYM_SYNC>            Nym SOCKS5 client used for SYNC [default: 127.0.0.1:1080]
       --nym-broadcast <NYM_BROADCAST>  Nym SOCKS5 client used for BROADCAST (must be a different client/exit than sync) [default: 127.0.0.1:1081]
+      --tor <TOR>                      Tor SOCKS5 port used to BROADCAST when Nym can't reach the network (a new circuit per tx; never direct). Used only if something is listening there (`tor`, `arti proxy`, or Tor Browser on 9150) [default: 127.0.0.1:9050]
+      --no-tor                         Never use Tor, even as the broadcast fallback
   -h, --help                           Print help
 ```
 
@@ -187,6 +241,8 @@ Options:
       --nym-sync <NYM_SYNC>            Nym SOCKS5 client used for SYNC [default: 127.0.0.1:1080]
   -q, --quiet                          Only errors
       --nym-broadcast <NYM_BROADCAST>  Nym SOCKS5 client used for BROADCAST (must be a different client/exit than sync) [default: 127.0.0.1:1081]
+      --tor <TOR>                      Tor SOCKS5 port used to BROADCAST when Nym can't reach the network (a new circuit per tx; never direct). Used only if something is listening there (`tor`, `arti proxy`, or Tor Browser on 9150) [default: 127.0.0.1:9050]
+      --no-tor                         Never use Tor, even as the broadcast fallback
       --show-real-ip                   Print your own IP in full (masked by default so it doesn't end up in screenshots/logs)
   -h, --help                           Print help
 ```
@@ -207,6 +263,8 @@ Options:
   -q, --quiet                          Only errors
       --nym-sync <NYM_SYNC>            Nym SOCKS5 client used for SYNC [default: 127.0.0.1:1080]
       --nym-broadcast <NYM_BROADCAST>  Nym SOCKS5 client used for BROADCAST (must be a different client/exit than sync) [default: 127.0.0.1:1081]
+      --tor <TOR>                      Tor SOCKS5 port used to BROADCAST when Nym can't reach the network (a new circuit per tx; never direct). Used only if something is listening there (`tor`, `arti proxy`, or Tor Browser on 9150) [default: 127.0.0.1:9050]
+      --no-tor                         Never use Tor, even as the broadcast fallback
   -h, --help                           Print help
 ```
 
@@ -285,6 +343,8 @@ Options:
       --direct                         Opt OUT of Nym: connect directly (the server then sees your IP on both paths). Default: sync and broadcast go through two Nym SOCKS5 clients with different exits, fail closed
       --nym-sync <NYM_SYNC>            Nym SOCKS5 client used for SYNC [default: 127.0.0.1:1080]
       --nym-broadcast <NYM_BROADCAST>  Nym SOCKS5 client used for BROADCAST (must be a different client/exit than sync) [default: 127.0.0.1:1081]
+      --tor <TOR>                      Tor SOCKS5 port used to BROADCAST when Nym can't reach the network (a new circuit per tx; never direct). Used only if something is listening there (`tor`, `arti proxy`, or Tor Browser on 9150) [default: 127.0.0.1:9050]
+      --no-tor                         Never use Tor, even as the broadcast fallback
   -h, --help                           Print help
 ```
 

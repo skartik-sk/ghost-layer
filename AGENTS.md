@@ -23,8 +23,7 @@ End-to-end (real money on testnet, real local regtest network):
 ```bash
 # local before/after: ShadeCheck observer + Ghost Layer + attacker (needs Docker, ShadeCheck, funded regtest wallets)
 SHADECHECK_DIR=… GHOST_REGTEST_WALLETS=… ZCASH_DEVTOOL=… scripts/e2e_local.sh
-# real testnet payment through Ghost Layer, verified on-chain
-scripts/nym_setup.sh up
+# real testnet payment through Ghost Layer, verified on-chain (Nym is built in; optional: run `tor` for the broadcast fallback)
 MODE=nym WALLET_DIR=… IDENTITY=… TO_ADDRESS=utest1… ZCASH_DEVTOOL=… scripts/e2e_testnet.sh
 ```
 
@@ -52,7 +51,7 @@ Each crate's `README.md` is a copy of the root README (refresh it before a relea
 ```bash
 cargo publish --workspace --dry-run      # packages + verifies every crate from its packaged sources
 cargo login                              # a human, with their own crates.io token
-cargo publish --workspace                # irreversible — v0.1.0 published 2026-11-04
+cargo publish --workspace --locked       # irreversible — v0.1.0 2026-11-04, v0.2.0 2026-11-11 (run scripts/pin_nym.sh after any cargo update)
 ```
 
 ## Conventions

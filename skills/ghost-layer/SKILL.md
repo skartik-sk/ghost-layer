@@ -22,7 +22,7 @@ Testnet only. NU7 is active (branch `0x77190AD9`, v6 transactions; v4 is invalid
 
 Nym is on by default (fails closed if it is down; `--direct` opts out and exposes the user's IP, so only use it if the user asks).
 
-1. Health: `ghost --json doctor` → every `checks[].ok` must be `true`. If a Nym check fails: `scripts/nym_setup.sh up` (or `--reinit` for new exits).
+1. Health: `ghost --json doctor` → every `checks[].ok` must be `true`. If a Nym check fails: Nym is built in and replaces dead exits by itself; retry in a minute, or start `ghost nym` and keep it running.
 2. Pay: `ghost --json pay --wallet <dir> --identity <age file> --to <utest1…> --amount <TAZ>`
    - It starts/uses the gateway, syncs, sends, waits a random delay (10–40 s), broadcasts on a fresh connection, then waits until mined (~1–2 min).
    - Exit 0 + `txid`, `height`, `explorer[]` = done. Exit 2 = bad input. Exit 3 = network rejected. Exit 1 with "Insufficient balance": funds need ~10 confirmations (~4 min); retry later.
