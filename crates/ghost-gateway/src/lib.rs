@@ -303,8 +303,13 @@ fn tree_state_cover(h: u64, tip: u64, rng: &mut impl rand::RngExt) -> Vec<u64> {
     let cell = grid::S_FLOOR;
     let real_cell = h / cell;
     let last_cell = tip / cell;
+    debug_assert!(h <= tip, "callers pass tip >= h");
     let mut first = real_cell.saturating_sub(rng.random_range(0..4u64));
     first = first.min(last_cell.saturating_sub(3));
+    // Never a window without the real cell (it is the one height the server must not be able to single out).
+    if !(first..first + 4).contains(&real_cell) {
+        first = real_cell.saturating_sub(3);
+    }
     let mut out = vec![h];
     for c in first..first + 4 {
         if c == real_cell {
@@ -516,22 +521,28 @@ impl CompactTxStreamer for Gateway {
     async fn get_tree_state(&self, r: Request<BlockId>) -> Result<Response<TreeState>, Status> {
         // The exact height (often the wallet's birthday) is a fingerprint. Ask for it among decoys: one height in
         // each of 4 consecutive grid cells, real one in a random position, sent in random order.
-        let tip = self.grid.tip.load(Ordering::Relaxed);
         let h = r.get_ref().height;
-        if h == 0 || !r.get_ref().hash.is_empty() || tip < 4 * grid::S_FLOOR {
+        if h == 0 || !r.get_ref().hash.is_empty() || self.grid.tip.load(Ordering::Relaxed) < 4 * grid::S_FLOOR {
             return unary!(self, r, get_tree_state, "GetTreeState");
         }
         let (mut c, conn) = self.session(r.remote_addr()).await?;
-        let heights = tree_state_cover(h, tip, &mut rand::rng());
+        // A height above our cached tip must not produce a window without the real cell: refresh first.
+        let mut tip = self.grid.tip.load(Ordering::Relaxed);
+        if h > tip {
+            tip = self.grid.refresh_tip(c.clone(), conn).await.unwrap_or(tip);
+        }
+        let heights = tree_state_cover(h, tip.max(h), &mut rand::rng());
+        // Every cover request is sent whatever the others return, so the pattern never depends on which is real.
         let mut real = None;
         for q in heights {
             self.log(conn, "GetTreeState", format!("height={q} (one of 4, grid-covered)"));
             let resp = c.get_tree_state(Request::new(BlockId { height: q, hash: vec![] })).await;
             if q == h {
-                real = Some(resp?.into_inner());
+                real = Some(resp);
             }
         }
-        Ok(Response::new(real.expect("the real height is always in the cover set")))
+        let resp = real.expect("the real height is always in the cover set")?;
+        Ok(Response::new(resp.into_inner()))
     }
     async fn get_latest_tree_state(&self, r: Request<Empty>) -> Result<Response<TreeState>, Status> {
         unary!(self, r, get_latest_tree_state, "GetLatestTreeState")
@@ -634,6 +645,13 @@ mod tests {
         // Near the tip the window shifts down but stays valid.
         let v = tree_state_cover(tip - 5, tip, &mut rand::rng());
         assert!(v.contains(&(tip - 5)) && v.iter().all(|&x| x <= tip));
+        // The real cell is always inside the 4-cell window, wherever h sits relative to the tip.
+        for h in [tip, tip - 1, tip - cell, 4 * cell, 4 * cell + 1, 5 * cell - 1] {
+            let v = tree_state_cover(h, tip, &mut rand::rng());
+            let mut cells: Vec<u64> = v.iter().map(|x| x / cell).collect();
+            cells.sort();
+            assert!(cells.contains(&(h / cell)) && cells.windows(2).all(|w| w[1] == w[0] + 1), "h={h}: {cells:?}");
+        }
     }
 
     #[test]
